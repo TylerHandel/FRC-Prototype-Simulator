@@ -126,6 +126,21 @@ simulated seconds at 1 kHz in 0.33 s. Its build script could not download MuJoCo
 network; pointing `MUJOCO_DYNAMIC_LINK_DIR` at the release archive worked. The spikes give the same
 results on MuJoCo 3.17.0 and 4.0.1.
 
+**5. Onshape, on the test robot** (the owner's keys, an EDU Educator account, 2910's 2025 document):
+
+| Call | Result |
+|---|---|
+| Document and element list | Served. The document grants `EXPORT` and anonymous access only. The workspace in the public link was stale; the document's `defaultWorkspace` is the one to use. |
+| Assembly definition (the mates) | Refused, 403. The 2026 notes record the same for 7769's export-only document. |
+| Bill of materials | Served, 5.3 MB in 8 s: 655 rows, 1,919 parts. 585 rows carry a mass, 557 a material. |
+| STEP translation | STEP_RESULT |
+
+The BOM names what the app needs to match: 16 Kraken X60 and 4 Kraken X44, SDS MK4i modules with
+4 in. nitrile treads, two "4 in. OD x 1 in. Wide Straight Flex Wheel (... 45A) (WCP-1362)" and four
+"AM-3562 3/8 in. Hex Bore 4 in. Compliant Wheel", with materials such as 6061, 7075, polycarbonate,
+Delrin and printed Onyx. Hardware is 209 rows and more than half the part count. The whole exchange
+cost about 10 API calls.
+
 ## Decisions
 
 **D1. A new Rust workspace. Code is copied in, not depended on.** Bevy 0.20 for the app, plain Rust
@@ -208,11 +223,18 @@ has to be physical.
   step rate (floor 1 kHz), and warns when a pairing would need more than 4 kHz. If that proves too
   tight, the fallback is the implicit per-contact form already in `mechanism.rs` (`prepare` and
   `solve`: `hk = h(kh + c)`), run over the compliant contacts before the engine step.
-- *Calibration.* A wheel's foundation stiffness is back-solved from a press test: push the wheel
-  `d` into a flat plate, read force `F`. For radius `R` and width `w`,
-  `F = k_A * w * (4/3) * sqrt(2R) * d^1.5`. The library ships estimates from durometer (Gent's
-  relation from Shore A to modulus, over the tread thickness) and marks them "estimated" until a
-  measured point replaces them.
+- *Where stiffness comes from.* Published durometer first: the owner cannot press-test until the
+  season, and most compliant wheels state a Shore A. The library turns durometer into a modulus
+  (Gent's relation) and then into a foundation stiffness from the wheel's build (solid tread
+  thickness, or spoke geometry for flex and compliant wheels). Every such value is marked
+  *estimated from durometer*. Two things follow. Comparisons between wheels (35A against 60A on
+  the same intake) are sound before absolute forces are, and the interface says so on every result
+  that rests on an estimate. And a later press test replaces the estimate without touching the
+  design: push the wheel `d` into a flat plate, read force `F`, and for radius `R` and width `w`,
+  `F = k_A * w * (4/3) * sqrt(2R) * d^1.5` gives `k_A`.
+- *Inflated pieces.* A ball held up by air pressure (ALGAE) has its own law: pressure on a sample in
+  contact is the gauge pressure plus a small skin term, not a function of depth. The pack states
+  the pressure as a range, and a sweep can run across it.
 
 **D5. Everything else is rigid contact in MuJoCo.** Frame against field, robot against robot, a
 piece on the carpet or on a polycarbonate plate. Elliptic friction cones, `impratio` 10, sleeping
@@ -235,16 +257,29 @@ proportions), *Detailed* (convex decomposition of the parts flagged as touching 
 Fasteners and electronics are dropped by size and name before anything else. Surfaces used by the
 foundation contact keep their triangles; they do not need to be convex.
 
-**D8. CAD comes in through a sidecar built on OpenCascade.** `tools/cadread` is a small C++ program
-(a port of `step2glb.py` and `step-axes.py`, whose calls map one to one onto the C++ API). It reads
-STEP and writes a *cadpack*: a GLB with the assembly tree, names and colors, plus a JSON of per-part
-facts (volume, centre of mass, bounding box, cylinder axes with radii and areas, planar faces). The
-app runs it as a child process with progress and a timeout, so a bad file cannot take the app down,
-and the OpenCascade build stays out of the Rust build. Until it exists (M3), the two Python scripts
-produce the same files for development. Plain meshes (GLB, OBJ, STL) import too, without the facts.
-Onshape direct import comes after STEP (M8): it brings mates, which become joints with no clicking,
-but education accounts are capped at about 2,500 API calls a year, so an import must cost under ten
-calls and cache everything.
+**D8. CAD comes in as STEP, read by a sidecar built on OpenCascade. The front door is an Onshape
+link.** The owner's CAD is in Onshape, and STEP carries the exact surfaces (true cylinders, so axes
+and radii are read, not fitted), which Onshape's glTF export does not.
+
+- *Paste a link.* The app asks Onshape to translate the assembly to STEP, downloads it, and fetches
+  the bill of materials: each part's material, mass and vendor part number. The BOM fills materials
+  and masses, and matches wheels and motors to the library by name ("4 in. Compliant Wheel",
+  "WCP-1362 ... 45A", "Kraken X60"). Where the API serves the assembly definition (the owner's own
+  documents), mates become proposed joints with their limits. On other teams' export-only
+  documents it is refused (measured below), and joints come from the geometry.
+- *The sidecar.* `tools/cadread` is a small C++ program, a port of `step2glb.py` and `step-axes.py`,
+  whose calls map one to one onto the C++ API. It reads STEP and writes a *cadpack*: a GLB with the
+  assembly tree, names and colors, plus a JSON of per-part facts (volume, centre of mass, bounding
+  box, cylinder axes with radii and areas, planar faces). The app runs it as a child process with
+  progress and a timeout, so a bad file cannot take the app down, and the OpenCascade build stays
+  out of the Rust build. Until it exists (M3), the two Python scripts produce the same files.
+- *Also.* A STEP file from disk, for CAD from anywhere else. Plain meshes (GLB, OBJ, STL) import
+  without the per-part facts.
+- *API budget.* The owner's plan is EDU Educator, capped at about 2,500 calls a year. An import
+  costs about 10 (measured), re-import of an unchanged version costs one, and everything fetched is
+  cached in the project. The app shows the calls used this year.
+- *Keys.* Read from `ONSHAPE_ACCESS_KEY` and `ONSHAPE_SECRET_KEY` or the system keychain. Never
+  written to a project file or a log.
 
 **D9. Markup survives a re-import.** Every part gets a stable id from its name path and instance
 index, with a fingerprint (volume, centre of mass, bounding box) as the fallback when names change.
@@ -299,9 +334,24 @@ CSV first, WPILOG later so AdvantageScope can open it.
 **D17. Tipping is real.** No tip damping. The view shows the centre of mass, the support polygon,
 and the margin as mechanisms move.
 
-**D18. Windows first, Linux for tests.** Installer and self-update by Velopack, as the 2026 app.
+**D18. Windows now, Linux for tests, nothing that shuts macOS out.** Installer and self-update by
+Velopack, as the 2026 app. To keep a Mac build a matter of adding a release job: no Windows-only
+crates or API calls outside one `platform` module, paths through the `dirs` crate, no DLSS, the
+sidecar built with CMake, and a macOS `cargo check` in CI that reports but does not block. MuJoCo,
+OpenCascade, Bevy and Velopack all support macOS.
 SI inside; the interface shows inches and pounds or millimetres and kilograms, and number fields
 accept units and arithmetic (`1.75in`, `30/11`, `6000rpm`).
+
+**D19. Wheels are swappable.** Comparing wheel compliance is a main reason this tool exists. A
+roller's geometry (axis, position, width) belongs to the design; what is on it is a reference to a
+library wheel. Swapping is one pick from a list on the roller, on a selection of rollers, or on a
+whole shaft, while the simulation runs. A swap to a different diameter shows the change in squeeze
+before it is accepted. A swapped wheel is drawn from the library (colored by durometer), not from
+the CAD part it replaced. On the Bench, wheel choice is a sweep axis like any number, and up to
+four choices run side by side in one view with the same piece thrown at each. The library starts
+with the common families at their published durometers (AndyMark compliant, WCP flex, Stealth and
+solid treads, silicone and urethane tube rollers, mecanum and omni intake wheels), each entry
+editable and each new wheel a short form.
 
 ## The robot description
 
@@ -383,8 +433,11 @@ under 30 minutes with the written guide.
 
 - Field from FIRST's published field CAD, through the importer, with collision set per element.
 - CORAL: a tube, 4 in. Schedule 40 PVC (4.5 in. outside), 11 7/8 in. long, rigid; the compliance is
-  in whatever grips it. ALGAE: a 16.25 in. ball, soft, with its own press curve. Take masses and
-  tolerances from the game manual, not from this file.
+  in whatever grips it. Take masses and tolerances from the game manual, not from this file.
+- ALGAE: a 16.25 in. (plus or minus 1/4 in.) rubber playground ball, modelled as inflated (D4) with
+  its pressure as a range. The owner asked for the published PSI range. The 2025 manual sets
+  inflation by a diameter gauge, and no PSI figure was found for it, so the pack ships a low,
+  middle and high pressure marked *estimated* until the owner names the source.
 - REEF branches are flagged *enters a bore*. A CORAL counts as scored when seated on a branch and at
   rest; the trough, PROCESSOR and NET are zones.
 - CORAL stations are feeders. CAGES hang from a ball joint, for climbs later.
@@ -396,6 +449,25 @@ under 30 minutes with the written guide.
 levels, flag bores and scoring zones, enter pieces from the manual with estimated materials, run
 the press test on a real piece when one arrives, enter the points table. Target: a driveable field
 the same day, measured pieces within the week.
+
+## The test robot: 2910's Spectre
+
+Jack in the Bot's 2025 robot, the world champion, released as a public Onshape document with a tech
+binder. 1323 has no public CAD that could be found. Spectre is a useful test because it is not an
+elevator: a pivoting, telescoping arm with a wristed end effector that handles both CORAL and
+ALGAE, on SDS MK4i swerve.
+
+- Document `f33ab032b00dc4b711aa86a6`, element `415a66cb7efdf4aba6199086` ("2025 Top Level
+  Assembly"); take the workspace from the document's `defaultWorkspace`. A second assembly,
+  "Scoring Positions", holds the arm in its scoring poses and gives joint ranges to check against.
+- Release thread: https://www.chiefdelphi.com/t/2910-cad-and-tech-binder-release-2025/500310 (the
+  tech binder is linked there). The team says in it that the intake's belts were changed to chain
+  and gears after skipping under load, and that the intake's cross rod went from a 1/4 in. bolt to
+  a 1/2 in. steel rod after bending twice. Both are loads the simulator should show as high.
+- Its CAD is fetched with the owner's keys by `tools/fetch-fixture` into a cache outside the
+  repository. It is another team's work: never commit it, its meshes or its cadpack. CI runs on a
+  small generated robot; the Spectre gates are run locally and their results written here.
+- It has no mates through the API, so it exercises the harder path: every joint from geometry.
 
 ## Layout
 
@@ -429,7 +501,7 @@ spikes/            the measurements above
 | `native/crates/app/src/update.rs`, `main.rs`, `.github/workflows/release.yml` | Velopack and the release job (drop the DLSS and asset-sync steps) | M0 |
 | `native/crates/app/src/settings.rs`, `camera.rs`, `materials.rs`, `bevel.rs`, `ui/mod.rs`, `ui/hud.rs` | Settings, camera rig, CAD look, palette and fonts, HUD | `app` |
 | `2026/tools/step2glb.py`, `step-axes.py` | Development importer, then the spec for `cadread` | M0 to M3 |
-| `2026/tools/extract-parts.mjs`, `cad/README.md` | Hardware filters, name matching (`like`), Onshape API notes | `cad`, M8 |
+| `2026/tools/extract-parts.mjs`, `tools/onshape-export.sh`, `cad/README.md` | Hardware filters, name matching (`like`), the Onshape translation calls and notes | `cad`, M3 |
 | `2026/js/constants.js`, `native/assets/world.json` | FUEL's measured foam numbers, the 2026 field colliders | M1 check, M6 pack |
 | `2026/tools/mechlab.mjs` | The `foam` and `pinch` scenes as cross-checks | M1 gate |
 
@@ -454,12 +526,15 @@ runs on Windows and updates itself.
 pieces. Pieces: CORAL, ALGAE, FUEL. Bench scenes set from the inspector: roller over floor, two
 rollers, roller against a backing plate, belt, with a feeder (pose and speed, fixed or random).
 Live plots of current, voltage, squeeze force, slip. Pressure drawn on the roller.
+Wheel swapping and the side-by-side view (D19), with the first wheel library.
 **Gate:** closed-form checks (motor curve, battery sag, a block on a slope slips at `atan(mu)`, the
-press-test formula, energy in against energy out). FUEL pressed between plates follows the measured
-curve. The two-wheel `pinch` scene throws FUEL within 10 % of the 2026 simulator's speed. The yaw
-behaviour from spike 1 is checked against footage or a physical test the owner provides, and the
-slice geometry fixed if it is wrong.
-**Release:** tune a roller intake and watch it work.
+press-test formula, energy in against energy out). FUEL pressed between plates follows AndyMark's
+measured curve, the one measured compression curve to hand. The two-wheel `pinch` scene throws FUEL
+within 10 % of the 2026 simulator's speed. Swapping 35A for 60A on the same intake moves squeeze
+force and current the right way and by a plausible ratio. The yaw behaviour from spike 1 is checked
+against slow-motion footage of a real CORAL intake (public match video will do), and the slice
+geometry fixed if it is wrong.
+**Release:** tune a roller intake, swap its wheels, and watch the difference.
 
 ### M2: Concept robots
 Joints, couplings and templates (elevator, arm, wrist, telescope, turret, four-bar, intake,
@@ -471,12 +546,17 @@ robot built from the palette in under 10 minutes drives, picks up and places.
 **Release:** build an archetype and drive it on a flat floor.
 
 ### M3: CAD
-`cadread` and its CI build. Import with progress. Parts tree. Links, joints and rollers by clicking
-geometry. Proposals. Materials and mass (density times volume, with a per-link override and "scale
-to the weighed total"). Collision levels. Re-import with markup kept. Laying a template over CAD.
-**Gate:** a real robot's STEP (the owner supplies it; see the questions) imports in under 2 minutes
-and stays above 60 fps. The 30-minute rigging test passes. Re-import after moving, renaming and
-replacing parts keeps every piece of markup whose part still exists, and lists the rest.
+`cadread` and its CI build. Import from an Onshape link (STEP translation, BOM, and mates where the
+API serves them) and from a STEP file, with progress and the API call count. Parts tree. Links,
+joints and rollers by clicking geometry. Proposals, including wheels and motors matched to the
+library from BOM names. Materials and mass from the BOM, else density times volume, with a per-link
+override and "scale to the weighed total". Collision levels. Re-import with markup kept. Laying a
+template over CAD.
+**Gate:** Spectre (see "The test robot") imports from its link in under 5 minutes plus Onshape's own
+translation time, and the view stays above 60 fps. The 30-minute rigging test passes on it.
+Re-import after moving, renaming and replacing parts keeps every piece of markup whose part still
+exists, and lists the rest. One of the owner's own documents imports with its mates proposed as
+joints.
 **Release:** your CAD, moving under its own motors.
 
 ### M4: REEFSCAPE
@@ -491,14 +571,16 @@ a hand count.
 Foundation contact against CAD surfaces. Soft pieces against rigid shapes. The hollow piece and
 seating on a branch. Beam breaks and the other sensors. Wheels on real contact as a drivetrain
 option. Sleeping, and full contact only near working mechanisms.
-**Gate:** the rigged robot intakes a CORAL from the floor and from the station and seats it on L2 to
-L4 with no assist. Six robots on the field hold real time at 1 kHz on the owner's machine. A
-comparison against the owner's footage or logs of a real 2025 intake is written into this file,
-with what matched and what did not.
+**Gate:** Spectre, rigged, picks a CORAL and an ALGAE off the floor and scores them with no assist.
+Six robots on the field hold real time at 1 kHz on the owner's machine. A comparison against public
+footage of the real robot (time from first touch to held, what happens to a CORAL that arrives
+turned) is written into this file, with what matched and what did not. Until the owner can
+press-test, that footage is the only check on Full mode's absolute numbers.
 **Release:** the design-review tool.
 
 ### M6: sweeps, a second game, the kickoff guide
-Sweeps on the Bench (choose variables and outcomes, run in parallel, heat map and table). Variants
+Sweeps on the Bench (choose variables, wheel choice among them, and outcomes; run in parallel; heat
+map and table). Variants
 side by side in Analyze. CSV export. The REBUILT pack. The kickoff guide, tested by building the
 REBUILT pack from it.
 **Gate:** a 3 by 3 by 3 sweep of squeeze, speed and limit over 20 random approaches each finishes in
@@ -508,7 +590,8 @@ under 2 minutes. The REBUILT pack is built from the guide without touching code.
 ### After kickoff
 - **M7: matches.** Scripted alliance partners and opponents in Concept (cycle to the nearest piece,
   score, defend), six-robot matches, the HUD.
-- **M8: Onshape import**, mates to joints, within the API cap.
+- **M8: press tests.** A form that takes force at a known squeeze for a wheel or a piece, replaces
+  the durometer estimate, and reruns the affected results. When the owner has 2027 pieces in hand.
 - **M9: robot code.** The bridge library (Java and Phoenix 6 first, as the owner's robots use), the
   HAL WebSocket client, then lock-step timing.
 - **M10: WPILOG export, cameras and AprilTags, deformed drawing of squashed pieces.**
@@ -517,15 +600,22 @@ under 2 minutes. The REBUILT pack is built from the guide without touching code.
 
 - **A design tool that is confidently wrong is worse than none.** Every material and wheel is marked
   measured or estimated, results say which they rest on, and M1 and M5 each end with a comparison
-  against something real. The owner's press tests and footage are what make Full mode trustworthy.
+  against something real. There are no press tests until the season, so until then Full mode is
+  good for ranking options (this wheel against that one, more squeeze against less) and only
+  indicative for absolute current and force. The interface has to say that plainly, not in a
+  footnote.
+- **Durometer is not stiffness.** Two 45A wheels with different spokes squash very differently.
+  The estimate from durometer needs each wheel family's build, and flex and compliant wheels will be
+  the least certain entries in the library. They are also the ones the owner most wants to compare,
+  so they are the first to press-test at M8.
 - **Explicit contact forces and stiff, light pieces.** Covered by the automatic step rate and the
   implicit fallback in D4. Watch for it with any piece under about 100 g.
 - **Grip creep.** A piece held by friction in a rigid MuJoCo contact can slide slowly. The bristle
   model covers compliant grips; for rigid ones raise `impratio` or turn on `noslip` for that pair,
   and test a held piece for 30 s at M5.
 - **Real STEP files.** Hundreds of megabytes, thousands of fasteners, odd units, missing names.
-  The sidecar, the hardware filter and instancing are for this. Test on the owner's real file at M3,
-  not on a clean sample.
+  The sidecar, the hardware filter and instancing are for this. Test on Spectre's real export at
+  M3, not on a clean sample.
 - **Thin plates and decomposition.** Polycarbonate guides are where pieces ride and where convex
   decomposition does worst. Plates are detected and built as boxes; piece-touching surfaces use
   triangles through the foundation path.
@@ -538,20 +628,29 @@ under 2 minutes. The REBUILT pack is built from the guide without touching code.
 - **Licences.** MuJoCo is Apache 2.0. OpenCascade is LGPL 2.1 with an exception; the sidecar is a
   separate program. Ship both notices. Do not bundle other teams' CAD.
 
-## Questions for the owner
+## The owner's answers (2026-11-20)
 
-Defaults are what gets built if there is no answer.
+1. **MuJoCo: go ahead** (D2).
+2. **CAD is in Onshape, and STEP is preferred** for its exact surfaces. So the import is "paste an
+   Onshape link", translated to STEP (D8), and it is part of M3, not a later extra. The owner's API
+   keys are in the environment as `ONSHAPE_ACCESS_KEY` and `ONSHAPE_SECRET_KEY`.
+3. **The test robot is another team's**, since the owner's 2025 robot is very simple: 1323 or 2910,
+   whichever has public CAD and a parts list. That is 2910 (see "The test robot").
+4. **No press tests for now** (the 2025 pieces are gone); perhaps during the season. Most compliant
+   wheels publish a durometer, so stiffness starts from that (D4), and the press-test form moves to
+   M8.
+5. **Wheels must be easy to swap.** Comparing compliance is a main reason for the tool (D19).
+6. **ALGAE from its published PSI range.** None was found (see the REEFSCAPE section), so this is
+   the one answer still open.
+7. **Windows only for now, with macOS left open** (D18).
 
-1. **MuJoCo instead of Rapier** (D2). It is the largest departure from your current stack. Default:
-   go ahead.
-2. **Where your CAD lives.** Default: STEP export first, Onshape direct import after kickoff.
-3. **The test robot.** M3 and M5 need a real 2025 robot's STEP and, ideally, footage or logs of its
-   intake. Default: you supply your 2025 robot; until then a generated stand-in.
-4. **Measurements.** Can you press-test wheels and pieces on a scale (force at a known squeeze)?
-   Default: yes, and the app has a form for it at M1.
-5. **Matches before kickoff.** Default: no. One robot on the field with timed cycles is M4; AI
-   robots wait for M7.
-6. **Platforms.** Default: Windows only, as now.
+Not answered, so the defaults stand: no AI matches before kickoff (M7).
+
+Still needed from the owner:
+
+- The source for ALGAE's PSI range, or agreement to use an estimated range.
+- One of your own Onshape documents (any robot or mechanism with mates) for M3's mates-to-joints
+  check.
 
 ## For the model building this
 
