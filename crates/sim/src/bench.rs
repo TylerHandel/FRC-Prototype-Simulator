@@ -126,7 +126,8 @@ pub fn trial(p: &Project, lib: &Library, wheel: Option<&str>, seed: u64) -> anyh
             tr.min_roller_rpm = tr.min_roller_rpm.min(rpm(&w));
         }
         tr.min_bus = tr.min_bus.min(w.bus.voltage);
-        if i == ((0.05 / w.dt) as usize) { tr.start_roller_rpm = rpm(&w); }
+        // the rollers' speed just before the piece arrives
+        if squeeze <= 0.0 && n_touch == 0 { tr.start_roller_rpm = rpm(&w); }
         let pieces = w.piece_positions();
         let (pos, held) = pieces.first().copied().unwrap_or(([0.0; 3], false));
         let inside = held || pos[0] < rmin - 0.01;

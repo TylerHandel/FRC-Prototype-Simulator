@@ -61,10 +61,14 @@ pub fn issues(r: &Robot, lib: &library::Library) -> Vec<Issue> {
         }
     }
     // rollers
+    let mut estimated: Vec<&str> = vec![];
     for x in &r.rollers {
         match lib.wheel(&x.wheel) {
             None => issue(&mut v, Severity::Warning, Target::Roller(x.id), format!("{}: no wheel '{}' in the library; using a 60A estimate", x.name, x.wheel)),
-            Some(w) if !w.measured => issue(&mut v, Severity::Info, Target::Roller(x.id), format!("{}: {} stiffness is estimated from its {}A durometer", x.name, w.name, w.durometer_a)),
+            Some(w) if !w.measured && !estimated.contains(&w.id.as_str()) => {
+                estimated.push(&w.id);
+                issue(&mut v, Severity::Info, Target::Roller(x.id), format!("{}: stiffness estimated from its {}A durometer (no press test yet)", w.name, w.durometer_a));
+            }
             _ => {}
         }
         if !r.drives.iter().any(|d| d.target == DriveTarget::Shaft { shaft: x.shaft }) {

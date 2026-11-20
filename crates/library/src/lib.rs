@@ -292,13 +292,20 @@ fn upsert<T>(v: &mut Vec<T>, item: T, id: impl Fn(&T) -> &String) {
     if let Some(i) = v.iter().position(|x| id(x) == id(&item)) { v[i] = item; } else { v.push(item); }
 }
 
+/// Name patterns, compiled once for the whole program.
+fn regex(p: &str) -> regex::Regex {
+    static CACHE: std::sync::OnceLock<std::sync::Mutex<HashMap<String, regex::Regex>>> = std::sync::OnceLock::new();
+    let m = CACHE.get_or_init(Default::default);
+    let mut g = m.lock().unwrap();
+    g.entry(p.to_string()).or_insert_with(|| regex::Regex::new(p).unwrap_or_else(|_| regex::Regex::new("$^").unwrap())).clone()
+}
+
 fn best_match<'a, T>(name: &str, items: &'a [T], pats: impl Fn(&T) -> &Vec<String>) -> Option<&'a T> {
     let lower = name.to_lowercase();
     let mut best: Option<(&T, usize)> = None;
-    let mut cache: HashMap<&str, regex::Regex> = HashMap::new();
     for it in items {
         for p in pats(it) {
-            let re = cache.entry(p.as_str()).or_insert_with(|| regex::Regex::new(p).unwrap_or_else(|_| regex::Regex::new("$^").unwrap()));
+            let re = regex(p);
             if let Some(m) = re.find(&lower) {
                 let score = m.as_str().len() * 1000 + p.len();
                 if best.is_none_or(|(_, s)| score > s) { best = Some((it, score)); }

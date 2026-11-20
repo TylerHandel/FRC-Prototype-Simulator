@@ -1,0 +1,32 @@
+# Every push and pull request: the simulation's tests on Linux (the milestone gates included), the
+# app built, and a macOS check that reports but doesn't block (PLAN.md D18).
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@1.97.1
+      - uses: Swatinem/rust-cache@v2
+      - name: System libraries for the app
+        run: sudo apt-get update && sudo apt-get install -y libudev-dev libxkbcommon-dev libwayland-dev libx11-dev
+      - name: MuJoCo
+        run: tools/fetch-mujoco.sh
+      - name: Tests
+        run: cargo test --workspace --exclude app --release
+      - name: Build the app
+        run: cargo build -p app --release
+
+  macos-check:
+    runs-on: macos-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@1.97.1
+      - name: Check (no MuJoCo link, so check only)
+        run: cargo check -p model -p library -p cad

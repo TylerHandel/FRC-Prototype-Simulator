@@ -4,4 +4,26 @@ version.workspace = true
 edition.workspace = true
 license.workspace = true
 
+[[bin]]
+name = "frc-prototype-sim"
+path = "src/main.rs"
+
 [dependencies]
+model.workspace = true
+library.workspace = true
+sim.workspace = true
+cad.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+anyhow.workspace = true
+dirs.workspace = true
+rayon.workspace = true
+# no audio: the app makes no sound, and it saves the ALSA build dependency on Linux
+bevy = { version = "0.20", default-features = false, features = ["3d", "ui"] }
+bevy_egui = "0.43"
+egui_plot = "0.37"
+velopack = "=1.2.161"
+
+# a native file picker where one comes without extra system libraries
+[target.'cfg(any(windows, target_os = "macos"))'.dependencies]
+rfd = "0.15"

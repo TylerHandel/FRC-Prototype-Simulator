@@ -95,7 +95,7 @@ pub fn format(si: f64, unit: &Unit) -> String {
 pub fn trim(v: f64) -> String {
     if !v.is_finite() { return format!("{v}"); }
     let a = v.abs();
-    let decimals = if a >= 1000.0 { 1 } else if a >= 100.0 { 2 } else if a >= 1.0 { 3 } else if a >= 0.01 { 4 } else { 6 };
+    let decimals = if a >= 1000.0 { 0 } else if a >= 100.0 { 1 } else if a >= 10.0 { 2 } else if a >= 1.0 { 3 } else if a >= 0.01 { 4 } else { 6 };
     let s = format!("{v:.decimals$}");
     let s = if s.contains('.') { s.trim_end_matches('0').trim_end_matches('.').to_string() } else { s };
     if s == "-0" { "0".into() } else { s }
