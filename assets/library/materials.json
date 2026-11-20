@@ -1,0 +1,58 @@
+{
+  "_about": "Materials for link mass (density) and for contact (friction against each other). Every friction pair is estimated until measured; the simulator says so on results that rest on them.",
+  "materials": [
+    { "id": "aluminum-6061", "name": "Aluminum 6061", "match": ["6061", "aluminum", "aluminium"], "density": 2700, "color": "#b9bec4" },
+    { "id": "aluminum-7075", "name": "Aluminum 7075", "match": ["7075"], "density": 2810, "color": "#c2c7cd" },
+    { "id": "steel", "name": "Steel", "match": ["steel", "4130", "stainless"], "density": 7850, "color": "#8a8f96" },
+    { "id": "polycarbonate", "name": "Polycarbonate", "match": ["polycarbonate", "lexan"], "density": 1200, "color": "#9fc3e6" },
+    { "id": "delrin", "name": "Acetal (Delrin)", "match": ["delrin", "acetal"], "density": 1410, "color": "#f2f2f2" },
+    { "id": "nylon", "name": "Nylon", "match": ["nylon"], "density": 1150, "color": "#efe9dc" },
+    { "id": "printed-onyx", "name": "3D printed (Onyx)", "match": ["onyx"], "density": 1200, "color": "#3a3a3a" },
+    { "id": "printed-pla", "name": "3D printed (PLA, PETG)", "match": ["pla\\b", "petg", "printed"], "density": 1000, "color": "#e86f2e" },
+    { "id": "hdpe", "name": "HDPE", "match": ["hdpe", "polyethylene"], "density": 960, "color": "#f5f5f5" },
+    { "id": "wood", "name": "Plywood", "match": ["plywood", "wood", "birch"], "density": 680, "color": "#c9a46a" },
+    { "id": "carbon-fiber", "name": "Carbon fiber", "match": ["carbon"], "density": 1600, "color": "#222222" },
+    { "id": "eva-foam", "name": "EVA foam", "match": ["eva", "foam"], "density": 100, "color": "#555555" },
+    { "id": "pool-noodle", "name": "Bumper (pool noodle and fabric)", "match": ["bumper"], "density": 60, "color": "#c03a2b" },
+    { "id": "rubber", "name": "Rubber", "match": ["rubber", "nitrile", "neoprene", "silicone", "urethane"], "density": 1150, "color": "#2b2b2b" }
+  ],
+  "treads": [
+    { "id": "thermoplastic-rubber", "name": "Thermoplastic rubber (compliant and flex wheels)" },
+    { "id": "polyurethane", "name": "Polyurethane" },
+    { "id": "silicone", "name": "Silicone" },
+    { "id": "nitrile", "name": "Nitrile" },
+    { "id": "grip-tape", "name": "Grip tape" },
+    { "id": "polycarbonate", "name": "Polycarbonate (no tread)" },
+    { "id": "aluminum", "name": "Aluminum (no tread)" }
+  ],
+  "surfaces": [
+    { "id": "pvc", "name": "PVC (CORAL)" },
+    { "id": "playground-rubber", "name": "Playground ball rubber (ALGAE)" },
+    { "id": "foam", "name": "Foam (FUEL)" },
+    { "id": "carpet", "name": "Field carpet" }
+  ],
+  "_friction_about": "Static and sliding coefficients, tread against surface. All estimated.",
+  "friction": [
+    { "tread": "thermoplastic-rubber", "surface": "pvc", "static": 1.1, "sliding": 0.9 },
+    { "tread": "polyurethane", "surface": "pvc", "static": 0.9, "sliding": 0.75 },
+    { "tread": "silicone", "surface": "pvc", "static": 1.2, "sliding": 1.0 },
+    { "tread": "nitrile", "surface": "pvc", "static": 0.9, "sliding": 0.75 },
+    { "tread": "grip-tape", "surface": "pvc", "static": 1.0, "sliding": 0.85 },
+    { "tread": "polycarbonate", "surface": "pvc", "static": 0.35, "sliding": 0.3 },
+    { "tread": "aluminum", "surface": "pvc", "static": 0.4, "sliding": 0.35 },
+    { "tread": "thermoplastic-rubber", "surface": "playground-rubber", "static": 1.3, "sliding": 1.1 },
+    { "tread": "polyurethane", "surface": "playground-rubber", "static": 1.1, "sliding": 0.95 },
+    { "tread": "silicone", "surface": "playground-rubber", "static": 1.4, "sliding": 1.2 },
+    { "tread": "nitrile", "surface": "playground-rubber", "static": 1.1, "sliding": 0.95 },
+    { "tread": "grip-tape", "surface": "playground-rubber", "static": 1.2, "sliding": 1.0 },
+    { "tread": "polycarbonate", "surface": "playground-rubber", "static": 0.6, "sliding": 0.5 },
+    { "tread": "aluminum", "surface": "playground-rubber", "static": 0.6, "sliding": 0.5 },
+    { "tread": "thermoplastic-rubber", "surface": "foam", "static": 1.0, "sliding": 0.85 },
+    { "tread": "polyurethane", "surface": "foam", "static": 0.9, "sliding": 0.75 },
+    { "tread": "silicone", "surface": "foam", "static": 1.1, "sliding": 0.95 },
+    { "tread": "nitrile", "surface": "foam", "static": 0.9, "sliding": 0.75 },
+    { "tread": "grip-tape", "surface": "foam", "static": 1.0, "sliding": 0.85 },
+    { "tread": "polycarbonate", "surface": "foam", "static": 0.4, "sliding": 0.35 },
+    { "tread": "aluminum", "surface": "foam", "static": 0.4, "sliding": 0.35 }
+  ]
+}

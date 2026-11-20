@@ -1,0 +1,14 @@
+{
+  "_about": "DC motors from their makers' published curves. free_rpm, stall_torque (N*m), stall_current (A) and free_current (A) at 12 V. rotor_inertia (kg*m^2) is the motor's own rotor; most makers do not publish it, so those are estimates.",
+  "motors": [
+    { "id": "kraken-x60-foc", "name": "Kraken X60 (FOC)", "vendor": "WCP", "match": ["kraken x60", "wcp-0940"], "free_rpm": 5800, "stall_torque": 9.37, "stall_current": 483, "free_current": 2.0, "rotor_inertia": 6.5e-5, "source": "WCP Kraken X60 motor curve (FOC); rotor inertia from rebuilt-sim-2026", "measured": true },
+    { "id": "kraken-x60", "name": "Kraken X60 (trapezoidal)", "vendor": "WCP", "match": [], "free_rpm": 6000, "stall_torque": 7.09, "stall_current": 366, "free_current": 2.0, "rotor_inertia": 6.5e-5, "source": "WCP Kraken X60 motor curve (trapezoidal commutation)", "measured": true },
+    { "id": "kraken-x44-foc", "name": "Kraken X44 (FOC)", "vendor": "WCP", "match": ["kraken x44"], "free_rpm": 7530, "stall_torque": 4.1, "stall_current": 280, "free_current": 1.5, "rotor_inertia": 2.5e-5, "source": "WCP Kraken X44 motor curve (FOC); rotor inertia from rebuilt-sim-2026", "measured": true },
+    { "id": "falcon-500", "name": "Falcon 500", "vendor": "VEX", "match": ["falcon 500", "falcon500"], "free_rpm": 6380, "stall_torque": 4.69, "stall_current": 257, "free_current": 1.5, "rotor_inertia": 5.0e-5, "source": "VEX Falcon 500 motor curve", "measured": true },
+    { "id": "neo", "name": "NEO", "vendor": "REV", "match": ["\\bneo\\b", "rev-21-1650"], "free_rpm": 5676, "stall_torque": 2.6, "stall_current": 105, "free_current": 1.8, "rotor_inertia": 6.0e-5, "source": "REV NEO motor curve; rotor inertia estimated", "measured": false },
+    { "id": "neo-vortex", "name": "NEO Vortex", "vendor": "REV", "match": ["vortex", "rev-21-1652"], "free_rpm": 6784, "stall_torque": 3.6, "stall_current": 211, "free_current": 3.6, "rotor_inertia": 6.5e-5, "source": "REV NEO Vortex motor curve; rotor inertia estimated", "measured": false },
+    { "id": "neo-550", "name": "NEO 550", "vendor": "REV", "match": ["neo ?550", "rev-21-1651"], "free_rpm": 11000, "stall_torque": 0.97, "stall_current": 100, "free_current": 1.4, "rotor_inertia": 1.0e-5, "source": "REV NEO 550 motor curve; rotor inertia estimated", "measured": false },
+    { "id": "minion", "name": "Minion", "vendor": "CTRE", "match": ["minion"], "free_rpm": 7700, "stall_torque": 3.1, "stall_current": 200, "free_current": 2.0, "rotor_inertia": 3.0e-5, "source": "Estimated: check CTRE's published Minion curve and correct these", "measured": false },
+    { "id": "cim", "name": "CIM", "vendor": "VEX", "match": ["\\bcim\\b"], "free_rpm": 5330, "stall_torque": 2.41, "stall_current": 131, "free_current": 2.7, "rotor_inertia": 7.75e-5, "source": "VEX CIM motor curve; rotor inertia estimated", "measured": false }
+  ]
+}

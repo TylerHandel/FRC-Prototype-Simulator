@@ -1,0 +1,13 @@
+{
+  "_about": "Swerve modules. Drive ratio is motor turns per wheel turn. Steer ratio likewise.",
+  "modules": [
+    { "id": "sds-mk4i-l1", "name": "SDS MK4i L1", "match": ["mk4i"], "drive_ratio": 8.14, "steer_ratio": 21.4286, "wheel": "nitrile-tread-4in" },
+    { "id": "sds-mk4i-l2", "name": "SDS MK4i L2", "match": ["mk4i.*l2"], "drive_ratio": 6.75, "steer_ratio": 21.4286, "wheel": "nitrile-tread-4in" },
+    { "id": "sds-mk4i-l3", "name": "SDS MK4i L3", "match": ["mk4i.*l3"], "drive_ratio": 6.12, "steer_ratio": 21.4286, "wheel": "nitrile-tread-4in" },
+    { "id": "sds-mk4n-l2", "name": "SDS MK4n L2+", "match": ["mk4n"], "drive_ratio": 5.9, "steer_ratio": 18.75, "wheel": "nitrile-tread-4in" },
+    { "id": "sds-mk5n-r2", "name": "SDS MK5n R2", "match": ["mk5n", "mk5"], "drive_ratio": 6.03, "steer_ratio": 26.0, "wheel": "nitrile-tread-4in" },
+    { "id": "wcp-x2i-x2-10", "name": "WCP X2i (X2-10 ratio)", "match": ["x2i", "swerve ?x2", "swervex2"], "drive_ratio": 6.0, "steer_ratio": 12.1, "wheel": "nitrile-tread-4in" },
+    { "id": "rev-maxswerve-high", "name": "REV MAXSwerve (high)", "match": ["maxswerve"], "drive_ratio": 4.71, "steer_ratio": 46.42, "wheel": "nitrile-tread-4in" },
+    { "id": "thrifty-swerve", "name": "Thrifty Swerve", "match": ["thrifty"], "drive_ratio": 6.75, "steer_ratio": 25.0, "wheel": "nitrile-tread-4in" }
+  ]
+}

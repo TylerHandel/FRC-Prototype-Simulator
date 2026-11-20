@@ -1,0 +1,3989 @@
+{
+ "id": "reefscape-2025",
+ "name": "REEFSCAPE (2025)",
+ "about": "A simplified field: REEF, BARGE, CORAL STATIONS and PROCESSOR as blocks in roughly the right places. Scoring zones count CORAL on branches and in the trough, ALGAE in the PROCESSOR and NET. Import the official field CAD for exact geometry.",
+ "field": {
+  "length": 17.5483,
+  "width": 8.0518,
+  "carpet_friction": 1.0
+ },
+ "statics": [
+  {
+   "name": "North wall",
+   "shape": {
+    "box": {
+     "size": [
+      17.5483,
+      0.1,
+      0.5
+     ]
+    }
+   },
+   "pos": [
+    0,
+    4.0759,
+    0.25
+   ],
+   "euler_deg": [
+    0,
+    0,
+    0.0
+   ],
+   "color": "#4a4f55"
+  },
+  {
+   "name": "South wall",
+   "shape": {
+    "box": {
+     "size": [
+      17.5483,
+      0.1,
+      0.5
+     ]
+    }
+   },
+   "pos": [
+    0,
+    -4.0759,
+    0.25
+   ],
+   "euler_deg": [
+    0,
+    0,
+    0.0
+   ],
+   "color": "#4a4f55"
+  },
+  {
+   "name": "Blue alliance wall",
+   "shape": {
+    "box": {
+     "size": [
+      0.1,
+      8.0518,
+      2.0
+     ]
+    }
+   },
+   "pos": [
+    -8.8241,
+    0,
+    1.0
+   ],
+   "euler_deg": [
+    0,
+    0,
+    0.0
+   ],
+   "color": "#2b5fad"
+  },
+  {
+   "name": "Red alliance wall",
+   "shape": {
+    "box": {
+     "size": [
+      0.1,
+      8.0518,
+      2.0
+     ]
+    }
+   },
+   "pos": [
+    8.8241,
+    0,
+    1.0
+   ],
+   "euler_deg": [
+    0,
+    0,
+    0.0
+   ],
+   "color": "#b8312f"
+  },
+  {
+   "name": "Blue REEF base",
+   "shape": {
+    "cylinder": {
+     "radius": 0.8152,
+     "length": 0.4572
+    }
+   },
+   "pos": [
+    -4.2848,
+    0,
+    0.2286
+   ],
+   "euler_deg": [
+    0,
+    0,
+    0
+   ],
+   "color": "#6e6e78"
+  },
+  {
+   "name": "Blue REEF column",
+   "shape": {
+    "cylinder": {
+     "radius": 0.12,
+     "length": 1.9
+    }
+   },
+   "pos": [
+    -4.2848,
+    0,
+    0.95
+   ],
+   "euler_deg": [
+    0,
+    0,
+    0
+   ],
+   "color": "#4f4f58"
+  },
+  {
+   "name": "Blue REEF face 1",
+   "shape": {
+    "box": {
+     "size": [
+      0.1,
+      0.9605,
+      0.4572
+     ]
+    }
+   },
+   "pos": [
+    -3.5029,
+    0.0,
+    0.2286
+   ],
+   "euler_deg": [
+    0,
+    0,
+    0
+   ],
+   "color": "#3b6fc4"
+  },
+  {
+   "name": "Blue branch 1l",
+   "shape": {
+    "cylinder": {
+     "radius": 0.0212,
+     "length": 1.3928
+    }
+   },
+   "pos": [
+    -3.5529,
+    0.1643,
+    1.1536
+   ],
+   "euler_deg": [
+    0,
+    0,
+    0
+   ],
+   "color": "#9a6bd0",
+   "bore": true
+  },
+  {
+   "name": "Blue branch 1r",
+   "shape": {
+    "cylinder": {
+     "radius": 0.0212,
+     "length": 1.3928
+    }
+   },
+   "pos": [
+    -3.5529,
+    -0.1643,
+    1.1536
+   ],
+   "euler_deg": [
+    0,
+    0,
+    0
+   ],
+   "color": "#9a6bd0",
+   "bore": true
+  },
+  {
+   "name": "Blue REEF face 2",
+   "shape": {
+    "box": {
+     "size": [
+      0.1,
+      0.9605,
+      0.4572
+     ]
+    }
+   },
+   "pos": [
+    -3.8939,
+    0.6771,
+    0.2286
+   ],
+   "euler_deg": [
+    0,
+    0,
+    60
+   ],
+   "color": "#3b6fc4"
+  },
+  {
+   "name": "Blue branch 2l",
+   "shape": {
+    "cylinder": {
+     "radius": 0.0212,
+     "length": 1.3928
+    }
+   },
+   "pos": [
+    -4.0612,
+    0.716,
+    1.1536
+   ],
+   "euler_deg": [
+    0,
+    0,
+    0
+   ],
+   "color": "#9a6bd0",
+   "bore": true
+  },
+  {
+   "name": "Blue branch 2r",
+   "shape": {
+    "cylinder": {
+     "radius": 0.0212,
+     "length": 1.3928
+    }
+   },
+   "pos": [
+    -3.7765,
+    0.5516,
+    1.1536
+   ],
+   "euler_deg": [
+    0,
+    0,
+    0
+   ],
+   "color": "#9a6bd0",
+   "bore": true
+  },
+  {
+   "name": "Blue REEF face 3",
+   "shape": {
+    "box": {
+     "size": [
+      0.1,
+      0.9605,
+      0.4572
+     ]
+    }
+   },
+   "pos": [
+    -4.6757,
+    0.6771,
+    0.2286
+   ],
+   "euler_deg": [
+    0,
+    0,
+    120
+   ],
+   "color": "#3b6fc4"
+  },
+  {
+   "name": "Blue branch 3l",
+   "shape": {
+    "cylinder": {
+     "radius": 0.0212,
+     "length": 1.3928
+    }
+   },
+   "pos": [
+    -4.793,
+    0.5516,
+    1.1536
+   ],
+   "euler_deg": [
+    0,
+    0,
+    0
+   ],
+   "color": "#9a6bd0",
+   "bore": true
+  },
+  {
+   "name": "Blue branch 3r",
+   "shape": {
+    "cylinder": {
+     "radius": 0.0212,
+     "length": 1.3928
+    }
+   },
+   "pos": [
+    -4.5084,
+    0.716,
+    1.1536
+   ],
+   "euler_deg": [
+    0,
+    0,
+    0
+   ],
+   "color": "#9a6bd0",
+   "bore": true
+  },
+  {
+   "name": "Blue REEF face 4",
+   "shape": {
+    "box": {
+     "size": [
+      0.1,
+      0.9605,
+      0.4572
+     ]
+    }
+   },
+   "pos": [
+    -5.0666,
+    0.0,
+    0.2286
+   ],
+   "euler_deg": [
+    0,
+    0,
+    180
+   ],
+   "color": "#3b6fc4"
+  },
+  {
+   "name": "Blue branch 4l",
+   "shape": {
+    "cylinder": {
+     "radius": 0.0212,
+     "length": 1.3928
+    }
+   },
+   "pos": [
+    -5.0166,
+    -0.1643,
+    1.1536
+   ],
+   "euler_deg": [
+    0,
+    0,
+    0
+   ],
+   "color": "#9a6bd0",
+   "bore": true
+  },
+  {
+   "name": "Blue branch 4r",
+   "shape": {
+    "cylinder": {
+     "radius": 0.0212,
+     "length": 1.3928
+    }
+   },
+   "pos": [
+    -5.0166,
+    0.1643,
+    1.1536
+   ],
+   "euler_deg": [
+    0,
+    0,
+    0
+   ],
+   "color": "#9a6bd0",
+   "bore": true
+  },
+  {
+   "name": "Blue REEF face 5",
+   "shape": {
+    "box": {
+     "size": [
+      0.1,
+      0.9605,
+      0.4572
+     ]
+    }
+   },
+   "pos": [
+    -4.6757,
+    -0.6771,
+    0.2286
+   ],
+   "euler_deg": [
+    0,
+    0,
+    240
+   ],
+   "color": "#3b6fc4"
+  },
+  {
+   "name": "Blue branch 5l",
+   "shape": {
+    "cylinder": {
+     "radius": 0.0212,
+     "length": 1.3928
+    }
+   },
+   "pos": [
+    -4.5084,
+    -0.716,
+    1.1536
+   ],
+   "euler_deg": [
+    0,
+    0,
+    0
+   ],
+   "color": "#9a6bd0",
+   "bore": true
+  },
+  {
+   "name": "Blue branch 5r",
+   "shape": {
+    "cylinder": {
+     "radius": 0.0212,
+     "length": 1.3928
+    }
+   },
+   "pos": [
+    -4.793,
+    -0.5516,
+    1.1536
+   ],
+   "euler_deg": [
+    0,
+    0,
+    0
+   ],
+   "color": "#9a6bd0",
+   "bore": true
+  },
+  {
+   "name": "Blue REEF face 6",
+   "shape": {
+    "box": {
+     "size": [
+      0.1,
+      0.9605,
+      0.4572
+     ]
+    }
+   },
+   "pos": [
+    -3.8939,
+    -0.6771,
+    0.2286
+   ],
+   "euler_deg": [
+    0,
+    0,
+    300
+   ],
+   "color": "#3b6fc4"
+  },
+  {
+   "name": "Blue branch 6l",
+   "shape": {
+    "cylinder": {
+     "radius": 0.0212,
+     "length": 1.3928
+    }
+   },
+   "pos": [
+    -3.7765,
+    -0.5516,
+    1.1536
+   ],
+   "euler_deg": [
+    0,
+    0,
+    0
+   ],
+   "color": "#9a6bd0",
+   "bore": true
+  },
+  {
+   "name": "Blue branch 6r",
+   "shape": {
+    "cylinder": {
+     "radius": 0.0212,
+     "length": 1.3928
+    }
+   },
+   "pos": [
+    -4.0612,
+    -0.716,
+    1.1536
+   ],
+   "euler_deg": [
+    0,
+    0,
+    0
+   ],
+   "color": "#9a6bd0",
+   "bore": true
+  },
+  {
+   "name": "Blue CORAL STATION north",
+   "shape": {
+    "box": {
+     "size": [
+      0.25,
+      1.9,
+      1.2
+     ]
+    }
+   },
+   "pos": [
+    9.1241,
+    3.6759,
+    0.6
+   ],
+   "euler_deg": [
+    0,
+    0,
+    -54
+   ],
+   "color": "#8d8d93"
+  },
+  {
+   "name": "Blue CORAL STATION south",
+   "shape": {
+    "box": {
+     "size": [
+      0.25,
+      1.9,
+      1.2
+     ]
+    }
+   },
+   "pos": [
+    9.1241,
+    -3.6759,
+    0.6
+   ],
+   "euler_deg": [
+    0,
+    0,
+    54
+   ],
+   "color": "#8d8d93"
+  },
+  {
+   "name": "Blue PROCESSOR",
+   "shape": {
+    "box": {
+     "size": [
+      0.8,
+      0.4,
+      0.6
+     ]
+    }
+   },
+   "pos": [
+    -3.0848,
+    4.2259,
+    0.3
+   ],
+   "euler_deg": [
+    0,
+    0,
+    0.0
+   ],
+   "color": "#5d6168"
+  },
+  {
+   "name": "Red REEF base",
+   "shape": {
+    "cylinder": {
+     "radius": 0.8152,
+     "length": 0.4572
+    }
+   },
+   "pos": [
+    4.2848,
+    0,
+    0.2286
+   ],
+   "euler_deg": [
+    0,
+    0,
+    0
+   ],
+   "color": "#6e6e78"
+  },
+  {
+   "name": "Red REEF column",
+   "shape": {
+    "cylinder": {
+     "radius": 0.12,
+     "length": 1.9
+    }
+   },
+   "pos": [
+    4.2848,
+    0,
+    0.95
+   ],
+   "euler_deg": [
+    0,
+    0,
+    0
+   ],
+   "color": "#4f4f58"
+  },
+  {
+   "name": "Red REEF face 1",
+   "shape": {
+    "box": {
+     "size": [
+      0.1,
+      0.9605,
+      0.4572
+     ]
+    }
+   },
+   "pos": [
+    5.0666,
+    0.0,
+    0.2286
+   ],
+   "euler_deg": [
+    0,
+    0,
+    0
+   ],
+   "color": "#c94f4f"
+  },
+  {
+   "name": "Red branch 1l",
+   "shape": {
+    "cylinder": {
+     "radius": 0.0212,
+     "length": 1.3928
+    }
+   },
+   "pos": [
+    5.0166,
+    0.1643,
+    1.1536
+   ],
+   "euler_deg": [
+    0,
+    0,
+    0
+   ],
+   "color": "#9a6bd0",
+   "bore": true
+  },
+  {
+   "name": "Red branch 1r",
+   "shape": {
+    "cylinder": {
+     "radius": 0.0212,
+     "length": 1.3928
+    }
+   },
+   "pos": [
+    5.0166,
+    -0.1643,
+    1.1536
+   ],
+   "euler_deg": [
+    0,
+    0,
+    0
+   ],
+   "color": "#9a6bd0",
+   "bore": true
+  },
+  {
+   "name": "Red REEF face 2",
+   "shape": {
+    "box": {
+     "size": [
+      0.1,
+      0.9605,
+      0.4572
+     ]
+    }
+   },
+   "pos": [
+    4.6757,
+    0.6771,
+    0.2286
+   ],
+   "euler_deg": [
+    0,
+    0,
+    60
+   ],
+   "color": "#c94f4f"
+  },
+  {
+   "name": "Red branch 2l",
+   "shape": {
+    "cylinder": {
+     "radius": 0.0212,
+     "length": 1.3928
+    }
+   },
+   "pos": [
+    4.5084,
+    0.716,
+    1.1536
+   ],
+   "euler_deg": [
+    0,
+    0,
+    0
+   ],
+   "color": "#9a6bd0",
+   "bore": true
+  },
+  {
+   "name": "Red branch 2r",
+   "shape": {
+    "cylinder": {
+     "radius": 0.0212,
+     "length": 1.3928
+    }
+   },
+   "pos": [
+    4.793,
+    0.5516,
+    1.1536
+   ],
+   "euler_deg": [
+    0,
+    0,
+    0
+   ],
+   "color": "#9a6bd0",
+   "bore": true
+  },
+  {
+   "name": "Red REEF face 3",
+   "shape": {
+    "box": {
+     "size": [
+      0.1,
+      0.9605,
+      0.4572
+     ]
+    }
+   },
+   "pos": [
+    3.8939,
+    0.6771,
+    0.2286
+   ],
+   "euler_deg": [
+    0,
+    0,
+    120
+   ],
+   "color": "#c94f4f"
+  },
+  {
+   "name": "Red branch 3l",
+   "shape": {
+    "cylinder": {
+     "radius": 0.0212,
+     "length": 1.3928
+    }
+   },
+   "pos": [
+    3.7765,
+    0.5516,
+    1.1536
+   ],
+   "euler_deg": [
+    0,
+    0,
+    0
+   ],
+   "color": "#9a6bd0",
+   "bore": true
+  },
+  {
+   "name": "Red branch 3r",
+   "shape": {
+    "cylinder": {
+     "radius": 0.0212,
+     "length": 1.3928
+    }
+   },
+   "pos": [
+    4.0612,
+    0.716,
+    1.1536
+   ],
+   "euler_deg": [
+    0,
+    0,
+    0
+   ],
+   "color": "#9a6bd0",
+   "bore": true
+  },
+  {
+   "name": "Red REEF face 4",
+   "shape": {
+    "box": {
+     "size": [
+      0.1,
+      0.9605,
+      0.4572
+     ]
+    }
+   },
+   "pos": [
+    3.5029,
+    0.0,
+    0.2286
+   ],
+   "euler_deg": [
+    0,
+    0,
+    180
+   ],
+   "color": "#c94f4f"
+  },
+  {
+   "name": "Red branch 4l",
+   "shape": {
+    "cylinder": {
+     "radius": 0.0212,
+     "length": 1.3928
+    }
+   },
+   "pos": [
+    3.5529,
+    -0.1643,
+    1.1536
+   ],
+   "euler_deg": [
+    0,
+    0,
+    0
+   ],
+   "color": "#9a6bd0",
+   "bore": true
+  },
+  {
+   "name": "Red branch 4r",
+   "shape": {
+    "cylinder": {
+     "radius": 0.0212,
+     "length": 1.3928
+    }
+   },
+   "pos": [
+    3.5529,
+    0.1643,
+    1.1536
+   ],
+   "euler_deg": [
+    0,
+    0,
+    0
+   ],
+   "color": "#9a6bd0",
+   "bore": true
+  },
+  {
+   "name": "Red REEF face 5",
+   "shape": {
+    "box": {
+     "size": [
+      0.1,
+      0.9605,
+      0.4572
+     ]
+    }
+   },
+   "pos": [
+    3.8939,
+    -0.6771,
+    0.2286
+   ],
+   "euler_deg": [
+    0,
+    0,
+    240
+   ],
+   "color": "#c94f4f"
+  },
+  {
+   "name": "Red branch 5l",
+   "shape": {
+    "cylinder": {
+     "radius": 0.0212,
+     "length": 1.3928
+    }
+   },
+   "pos": [
+    4.0612,
+    -0.716,
+    1.1536
+   ],
+   "euler_deg": [
+    0,
+    0,
+    0
+   ],
+   "color": "#9a6bd0",
+   "bore": true
+  },
+  {
+   "name": "Red branch 5r",
+   "shape": {
+    "cylinder": {
+     "radius": 0.0212,
+     "length": 1.3928
+    }
+   },
+   "pos": [
+    3.7765,
+    -0.5516,
+    1.1536
+   ],
+   "euler_deg": [
+    0,
+    0,
+    0
+   ],
+   "color": "#9a6bd0",
+   "bore": true
+  },
+  {
+   "name": "Red REEF face 6",
+   "shape": {
+    "box": {
+     "size": [
+      0.1,
+      0.9605,
+      0.4572
+     ]
+    }
+   },
+   "pos": [
+    4.6757,
+    -0.6771,
+    0.2286
+   ],
+   "euler_deg": [
+    0,
+    0,
+    300
+   ],
+   "color": "#c94f4f"
+  },
+  {
+   "name": "Red branch 6l",
+   "shape": {
+    "cylinder": {
+     "radius": 0.0212,
+     "length": 1.3928
+    }
+   },
+   "pos": [
+    4.793,
+    -0.5516,
+    1.1536
+   ],
+   "euler_deg": [
+    0,
+    0,
+    0
+   ],
+   "color": "#9a6bd0",
+   "bore": true
+  },
+  {
+   "name": "Red branch 6r",
+   "shape": {
+    "cylinder": {
+     "radius": 0.0212,
+     "length": 1.3928
+    }
+   },
+   "pos": [
+    4.5084,
+    -0.716,
+    1.1536
+   ],
+   "euler_deg": [
+    0,
+    0,
+    0
+   ],
+   "color": "#9a6bd0",
+   "bore": true
+  },
+  {
+   "name": "Red CORAL STATION north",
+   "shape": {
+    "box": {
+     "size": [
+      0.25,
+      1.9,
+      1.2
+     ]
+    }
+   },
+   "pos": [
+    -9.1241,
+    3.6759,
+    0.6
+   ],
+   "euler_deg": [
+    0,
+    0,
+    54
+   ],
+   "color": "#8d8d93"
+  },
+  {
+   "name": "Red CORAL STATION south",
+   "shape": {
+    "box": {
+     "size": [
+      0.25,
+      1.9,
+      1.2
+     ]
+    }
+   },
+   "pos": [
+    -9.1241,
+    -3.6759,
+    0.6
+   ],
+   "euler_deg": [
+    0,
+    0,
+    -54
+   ],
+   "color": "#8d8d93"
+  },
+  {
+   "name": "Red PROCESSOR",
+   "shape": {
+    "box": {
+     "size": [
+      0.8,
+      0.4,
+      0.6
+     ]
+    }
+   },
+   "pos": [
+    3.0848,
+    -4.2259,
+    0.3
+   ],
+   "euler_deg": [
+    0,
+    0,
+    0.0
+   ],
+   "color": "#5d6168"
+  },
+  {
+   "name": "BARGE post",
+   "shape": {
+    "box": {
+     "size": [
+      0.1,
+      0.1,
+      2.1
+     ]
+    }
+   },
+   "pos": [
+    0,
+    -3.6,
+    1.05
+   ],
+   "euler_deg": [
+    0,
+    0,
+    0.0
+   ],
+   "color": "#4a4f55"
+  },
+  {
+   "name": "BARGE post",
+   "shape": {
+    "box": {
+     "size": [
+      0.1,
+      0.1,
+      2.1
+     ]
+    }
+   },
+   "pos": [
+    0,
+    0.0,
+    1.05
+   ],
+   "euler_deg": [
+    0,
+    0,
+    0.0
+   ],
+   "color": "#4a4f55"
+  },
+  {
+   "name": "BARGE post",
+   "shape": {
+    "box": {
+     "size": [
+      0.1,
+      0.1,
+      2.1
+     ]
+    }
+   },
+   "pos": [
+    0,
+    3.6,
+    1.05
+   ],
+   "euler_deg": [
+    0,
+    0,
+    0.0
+   ],
+   "color": "#4a4f55"
+  },
+  {
+   "name": "BARGE beam",
+   "shape": {
+    "box": {
+     "size": [
+      0.15,
+      7.3,
+      0.1
+     ]
+    }
+   },
+   "pos": [
+    0,
+    0,
+    2.15
+   ],
+   "euler_deg": [
+    0,
+    0,
+    0.0
+   ],
+   "color": "#4a4f55"
+  },
+  {
+   "name": "Centre line",
+   "shape": {
+    "box": {
+     "size": [
+      0.05,
+      8.0518,
+      0.002
+     ]
+    }
+   },
+   "pos": [
+    0,
+    0,
+    0.001
+   ],
+   "euler_deg": [
+    0,
+    0,
+    0.0
+   ],
+   "color": "#ffffff",
+   "ghost": true
+  }
+ ],
+ "pieces": [
+  {
+   "piece": "coral-2025",
+   "pos": [
+    -2.0567,
+    -1.83,
+    0.151
+   ],
+   "upright": true
+  },
+  {
+   "piece": "algae-2025",
+   "pos": [
+    -2.0567,
+    -1.83,
+    0.509
+   ]
+  },
+  {
+   "piece": "coral-2025",
+   "pos": [
+    -2.0567,
+    0.0,
+    0.151
+   ],
+   "upright": true
+  },
+  {
+   "piece": "algae-2025",
+   "pos": [
+    -2.0567,
+    0.0,
+    0.509
+   ]
+  },
+  {
+   "piece": "coral-2025",
+   "pos": [
+    -2.0567,
+    1.83,
+    0.151
+   ],
+   "upright": true
+  },
+  {
+   "piece": "algae-2025",
+   "pos": [
+    -2.0567,
+    1.83,
+    0.509
+   ]
+  },
+  {
+   "piece": "coral-2025",
+   "pos": [
+    2.0567,
+    -1.83,
+    0.151
+   ],
+   "upright": true
+  },
+  {
+   "piece": "algae-2025",
+   "pos": [
+    2.0567,
+    -1.83,
+    0.509
+   ]
+  },
+  {
+   "piece": "coral-2025",
+   "pos": [
+    2.0567,
+    0.0,
+    0.151
+   ],
+   "upright": true
+  },
+  {
+   "piece": "algae-2025",
+   "pos": [
+    2.0567,
+    0.0,
+    0.509
+   ]
+  },
+  {
+   "piece": "coral-2025",
+   "pos": [
+    2.0567,
+    1.83,
+    0.151
+   ],
+   "upright": true
+  },
+  {
+   "piece": "algae-2025",
+   "pos": [
+    2.0567,
+    1.83,
+    0.509
+   ]
+  }
+ ],
+ "feeders": [
+  {
+   "name": "Blue CORAL STATION north",
+   "piece": "coral-2025",
+   "alliance": "blue",
+   "pos": [
+    9.6741,
+    3.0259,
+    0.9
+   ],
+   "dir": [
+    0.6,
+    -0.8,
+    -0.3
+   ],
+   "speed": 1.2,
+   "interval": 1.5,
+   "reach": 1.3
+  },
+  {
+   "name": "Blue CORAL STATION south",
+   "piece": "coral-2025",
+   "alliance": "blue",
+   "pos": [
+    9.6741,
+    -3.0259,
+    0.9
+   ],
+   "dir": [
+    0.6,
+    0.8,
+    -0.3
+   ],
+   "speed": 1.2,
+   "interval": 1.5,
+   "reach": 1.3
+  },
+  {
+   "name": "Red CORAL STATION north",
+   "piece": "coral-2025",
+   "alliance": "red",
+   "pos": [
+    -9.6741,
+    3.0259,
+    0.9
+   ],
+   "dir": [
+    -0.6,
+    -0.8,
+    -0.3
+   ],
+   "speed": 1.2,
+   "interval": 1.5,
+   "reach": 1.3
+  },
+  {
+   "name": "Red CORAL STATION south",
+   "piece": "coral-2025",
+   "alliance": "red",
+   "pos": [
+    -9.6741,
+    -3.0259,
+    0.9
+   ],
+   "dir": [
+    -0.6,
+    0.8,
+    -0.3
+   ],
+   "speed": 1.2,
+   "interval": 1.5,
+   "reach": 1.3
+  }
+ ],
+ "zones": [
+  {
+   "name": "Blue L1 face 1",
+   "alliance": "blue",
+   "piece": "coral-2025",
+   "center": [
+    -3.5729,
+    0.0,
+    0.5372
+   ],
+   "size": [
+    0.3,
+    0.9,
+    0.25
+   ],
+   "euler_deg": [
+    0,
+    0,
+    0
+   ],
+   "auto_points": 3,
+   "teleop_points": 2,
+   "capacity": 4
+  },
+  {
+   "name": "Blue L2 1l",
+   "alliance": "blue",
+   "piece": "coral-2025",
+   "center": [
+    -3.4429,
+    0.1643,
+    0.8596
+   ],
+   "size": [
+    0.35,
+    0.35,
+    0.35
+   ],
+   "auto_points": 4,
+   "teleop_points": 3,
+   "capacity": 1,
+   "seat": {
+    "pos": [
+     -3.4429,
+     0.1643,
+     0.8596
+    ],
+    "euler_deg": [
+     0.0,
+     55.0,
+     0.0
+    ],
+    "tolerance": 0.2
+   }
+  },
+  {
+   "name": "Blue L3 1l",
+   "alliance": "blue",
+   "piece": "coral-2025",
+   "center": [
+    -3.4429,
+    0.1643,
+    1.2597
+   ],
+   "size": [
+    0.35,
+    0.35,
+    0.35
+   ],
+   "auto_points": 6,
+   "teleop_points": 4,
+   "capacity": 1,
+   "seat": {
+    "pos": [
+     -3.4429,
+     0.1643,
+     1.2597
+    ],
+    "euler_deg": [
+     0.0,
+     55.0,
+     0.0
+    ],
+    "tolerance": 0.2
+   }
+  },
+  {
+   "name": "Blue L4 1l",
+   "alliance": "blue",
+   "piece": "coral-2025",
+   "center": [
+    -3.5529,
+    0.1643,
+    1.8288
+   ],
+   "size": [
+    0.35,
+    0.35,
+    0.35
+   ],
+   "auto_points": 7,
+   "teleop_points": 5,
+   "capacity": 1,
+   "seat": {
+    "pos": [
+     -3.5529,
+     0.1643,
+     1.8288
+    ],
+    "euler_deg": [
+     0.0,
+     0.0,
+     0.0
+    ],
+    "tolerance": 0.2
+   }
+  },
+  {
+   "name": "Blue L2 1r",
+   "alliance": "blue",
+   "piece": "coral-2025",
+   "center": [
+    -3.4429,
+    -0.1643,
+    0.8596
+   ],
+   "size": [
+    0.35,
+    0.35,
+    0.35
+   ],
+   "auto_points": 4,
+   "teleop_points": 3,
+   "capacity": 1,
+   "seat": {
+    "pos": [
+     -3.4429,
+     -0.1643,
+     0.8596
+    ],
+    "euler_deg": [
+     0.0,
+     55.0,
+     0.0
+    ],
+    "tolerance": 0.2
+   }
+  },
+  {
+   "name": "Blue L3 1r",
+   "alliance": "blue",
+   "piece": "coral-2025",
+   "center": [
+    -3.4429,
+    -0.1643,
+    1.2597
+   ],
+   "size": [
+    0.35,
+    0.35,
+    0.35
+   ],
+   "auto_points": 6,
+   "teleop_points": 4,
+   "capacity": 1,
+   "seat": {
+    "pos": [
+     -3.4429,
+     -0.1643,
+     1.2597
+    ],
+    "euler_deg": [
+     0.0,
+     55.0,
+     0.0
+    ],
+    "tolerance": 0.2
+   }
+  },
+  {
+   "name": "Blue L4 1r",
+   "alliance": "blue",
+   "piece": "coral-2025",
+   "center": [
+    -3.5529,
+    -0.1643,
+    1.8288
+   ],
+   "size": [
+    0.35,
+    0.35,
+    0.35
+   ],
+   "auto_points": 7,
+   "teleop_points": 5,
+   "capacity": 1,
+   "seat": {
+    "pos": [
+     -3.5529,
+     -0.1643,
+     1.8288
+    ],
+    "euler_deg": [
+     0.0,
+     0.0,
+     0.0
+    ],
+    "tolerance": 0.2
+   }
+  },
+  {
+   "name": "Blue L1 face 2",
+   "alliance": "blue",
+   "piece": "coral-2025",
+   "center": [
+    -3.9289,
+    0.6165,
+    0.5372
+   ],
+   "size": [
+    0.3,
+    0.9,
+    0.25
+   ],
+   "euler_deg": [
+    0,
+    0,
+    60
+   ],
+   "auto_points": 3,
+   "teleop_points": 2,
+   "capacity": 4
+  },
+  {
+   "name": "Blue L2 2l",
+   "alliance": "blue",
+   "piece": "coral-2025",
+   "center": [
+    -4.0062,
+    0.8112,
+    0.8596
+   ],
+   "size": [
+    0.35,
+    0.35,
+    0.35
+   ],
+   "auto_points": 4,
+   "teleop_points": 3,
+   "capacity": 1,
+   "seat": {
+    "pos": [
+     -4.0062,
+     0.8112,
+     0.8596
+    ],
+    "euler_deg": [
+     0.0,
+     55.0,
+     60.0
+    ],
+    "tolerance": 0.2
+   }
+  },
+  {
+   "name": "Blue L3 2l",
+   "alliance": "blue",
+   "piece": "coral-2025",
+   "center": [
+    -4.0062,
+    0.8112,
+    1.2597
+   ],
+   "size": [
+    0.35,
+    0.35,
+    0.35
+   ],
+   "auto_points": 6,
+   "teleop_points": 4,
+   "capacity": 1,
+   "seat": {
+    "pos": [
+     -4.0062,
+     0.8112,
+     1.2597
+    ],
+    "euler_deg": [
+     0.0,
+     55.0,
+     60.0
+    ],
+    "tolerance": 0.2
+   }
+  },
+  {
+   "name": "Blue L4 2l",
+   "alliance": "blue",
+   "piece": "coral-2025",
+   "center": [
+    -4.0612,
+    0.716,
+    1.8288
+   ],
+   "size": [
+    0.35,
+    0.35,
+    0.35
+   ],
+   "auto_points": 7,
+   "teleop_points": 5,
+   "capacity": 1,
+   "seat": {
+    "pos": [
+     -4.0612,
+     0.716,
+     1.8288
+    ],
+    "euler_deg": [
+     0.0,
+     0.0,
+     0.0
+    ],
+    "tolerance": 0.2
+   }
+  },
+  {
+   "name": "Blue L2 2r",
+   "alliance": "blue",
+   "piece": "coral-2025",
+   "center": [
+    -3.7215,
+    0.6469,
+    0.8596
+   ],
+   "size": [
+    0.35,
+    0.35,
+    0.35
+   ],
+   "auto_points": 4,
+   "teleop_points": 3,
+   "capacity": 1,
+   "seat": {
+    "pos": [
+     -3.7215,
+     0.6469,
+     0.8596
+    ],
+    "euler_deg": [
+     0.0,
+     55.0,
+     60.0
+    ],
+    "tolerance": 0.2
+   }
+  },
+  {
+   "name": "Blue L3 2r",
+   "alliance": "blue",
+   "piece": "coral-2025",
+   "center": [
+    -3.7215,
+    0.6469,
+    1.2597
+   ],
+   "size": [
+    0.35,
+    0.35,
+    0.35
+   ],
+   "auto_points": 6,
+   "teleop_points": 4,
+   "capacity": 1,
+   "seat": {
+    "pos": [
+     -3.7215,
+     0.6469,
+     1.2597
+    ],
+    "euler_deg": [
+     0.0,
+     55.0,
+     60.0
+    ],
+    "tolerance": 0.2
+   }
+  },
+  {
+   "name": "Blue L4 2r",
+   "alliance": "blue",
+   "piece": "coral-2025",
+   "center": [
+    -3.7765,
+    0.5516,
+    1.8288
+   ],
+   "size": [
+    0.35,
+    0.35,
+    0.35
+   ],
+   "auto_points": 7,
+   "teleop_points": 5,
+   "capacity": 1,
+   "seat": {
+    "pos": [
+     -3.7765,
+     0.5516,
+     1.8288
+    ],
+    "euler_deg": [
+     0.0,
+     0.0,
+     0.0
+    ],
+    "tolerance": 0.2
+   }
+  },
+  {
+   "name": "Blue L1 face 3",
+   "alliance": "blue",
+   "piece": "coral-2025",
+   "center": [
+    -4.6407,
+    0.6165,
+    0.5372
+   ],
+   "size": [
+    0.3,
+    0.9,
+    0.25
+   ],
+   "euler_deg": [
+    0,
+    0,
+    120
+   ],
+   "auto_points": 3,
+   "teleop_points": 2,
+   "capacity": 4
+  },
+  {
+   "name": "Blue L2 3l",
+   "alliance": "blue",
+   "piece": "coral-2025",
+   "center": [
+    -4.848,
+    0.6469,
+    0.8596
+   ],
+   "size": [
+    0.35,
+    0.35,
+    0.35
+   ],
+   "auto_points": 4,
+   "teleop_points": 3,
+   "capacity": 1,
+   "seat": {
+    "pos": [
+     -4.848,
+     0.6469,
+     0.8596
+    ],
+    "euler_deg": [
+     0.0,
+     55.0,
+     120.0
+    ],
+    "tolerance": 0.2
+   }
+  },
+  {
+   "name": "Blue L3 3l",
+   "alliance": "blue",
+   "piece": "coral-2025",
+   "center": [
+    -4.848,
+    0.6469,
+    1.2597
+   ],
+   "size": [
+    0.35,
+    0.35,
+    0.35
+   ],
+   "auto_points": 6,
+   "teleop_points": 4,
+   "capacity": 1,
+   "seat": {
+    "pos": [
+     -4.848,
+     0.6469,
+     1.2597
+    ],
+    "euler_deg": [
+     0.0,
+     55.0,
+     120.0
+    ],
+    "tolerance": 0.2
+   }
+  },
+  {
+   "name": "Blue L4 3l",
+   "alliance": "blue",
+   "piece": "coral-2025",
+   "center": [
+    -4.793,
+    0.5516,
+    1.8288
+   ],
+   "size": [
+    0.35,
+    0.35,
+    0.35
+   ],
+   "auto_points": 7,
+   "teleop_points": 5,
+   "capacity": 1,
+   "seat": {
+    "pos": [
+     -4.793,
+     0.5516,
+     1.8288
+    ],
+    "euler_deg": [
+     0.0,
+     0.0,
+     0.0
+    ],
+    "tolerance": 0.2
+   }
+  },
+  {
+   "name": "Blue L2 3r",
+   "alliance": "blue",
+   "piece": "coral-2025",
+   "center": [
+    -4.5634,
+    0.8112,
+    0.8596
+   ],
+   "size": [
+    0.35,
+    0.35,
+    0.35
+   ],
+   "auto_points": 4,
+   "teleop_points": 3,
+   "capacity": 1,
+   "seat": {
+    "pos": [
+     -4.5634,
+     0.8112,
+     0.8596
+    ],
+    "euler_deg": [
+     0.0,
+     55.0,
+     120.0
+    ],
+    "tolerance": 0.2
+   }
+  },
+  {
+   "name": "Blue L3 3r",
+   "alliance": "blue",
+   "piece": "coral-2025",
+   "center": [
+    -4.5634,
+    0.8112,
+    1.2597
+   ],
+   "size": [
+    0.35,
+    0.35,
+    0.35
+   ],
+   "auto_points": 6,
+   "teleop_points": 4,
+   "capacity": 1,
+   "seat": {
+    "pos": [
+     -4.5634,
+     0.8112,
+     1.2597
+    ],
+    "euler_deg": [
+     0.0,
+     55.0,
+     120.0
+    ],
+    "tolerance": 0.2
+   }
+  },
+  {
+   "name": "Blue L4 3r",
+   "alliance": "blue",
+   "piece": "coral-2025",
+   "center": [
+    -4.5084,
+    0.716,
+    1.8288
+   ],
+   "size": [
+    0.35,
+    0.35,
+    0.35
+   ],
+   "auto_points": 7,
+   "teleop_points": 5,
+   "capacity": 1,
+   "seat": {
+    "pos": [
+     -4.5084,
+     0.716,
+     1.8288
+    ],
+    "euler_deg": [
+     0.0,
+     0.0,
+     0.0
+    ],
+    "tolerance": 0.2
+   }
+  },
+  {
+   "name": "Blue L1 face 4",
+   "alliance": "blue",
+   "piece": "coral-2025",
+   "center": [
+    -4.9966,
+    0.0,
+    0.5372
+   ],
+   "size": [
+    0.3,
+    0.9,
+    0.25
+   ],
+   "euler_deg": [
+    0,
+    0,
+    180
+   ],
+   "auto_points": 3,
+   "teleop_points": 2,
+   "capacity": 4
+  },
+  {
+   "name": "Blue L2 4l",
+   "alliance": "blue",
+   "piece": "coral-2025",
+   "center": [
+    -5.1266,
+    -0.1643,
+    0.8596
+   ],
+   "size": [
+    0.35,
+    0.35,
+    0.35
+   ],
+   "auto_points": 4,
+   "teleop_points": 3,
+   "capacity": 1,
+   "seat": {
+    "pos": [
+     -5.1266,
+     -0.1643,
+     0.8596
+    ],
+    "euler_deg": [
+     0.0,
+     55.0,
+     180.0
+    ],
+    "tolerance": 0.2
+   }
+  },
+  {
+   "name": "Blue L3 4l",
+   "alliance": "blue",
+   "piece": "coral-2025",
+   "center": [
+    -5.1266,
+    -0.1643,
+    1.2597
+   ],
+   "size": [
+    0.35,
+    0.35,
+    0.35
+   ],
+   "auto_points": 6,
+   "teleop_points": 4,
+   "capacity": 1,
+   "seat": {
+    "pos": [
+     -5.1266,
+     -0.1643,
+     1.2597
+    ],
+    "euler_deg": [
+     0.0,
+     55.0,
+     180.0
+    ],
+    "tolerance": 0.2
+   }
+  },
+  {
+   "name": "Blue L4 4l",
+   "alliance": "blue",
+   "piece": "coral-2025",
+   "center": [
+    -5.0166,
+    -0.1643,
+    1.8288
+   ],
+   "size": [
+    0.35,
+    0.35,
+    0.35
+   ],
+   "auto_points": 7,
+   "teleop_points": 5,
+   "capacity": 1,
+   "seat": {
+    "pos": [
+     -5.0166,
+     -0.1643,
+     1.8288
+    ],
+    "euler_deg": [
+     0.0,
+     0.0,
+     0.0
+    ],
+    "tolerance": 0.2
+   }
+  },
+  {
+   "name": "Blue L2 4r",
+   "alliance": "blue",
+   "piece": "coral-2025",
+   "center": [
+    -5.1266,
+    0.1643,
+    0.8596
+   ],
+   "size": [
+    0.35,
+    0.35,
+    0.35
+   ],
+   "auto_points": 4,
+   "teleop_points": 3,
+   "capacity": 1,
+   "seat": {
+    "pos": [
+     -5.1266,
+     0.1643,
+     0.8596
+    ],
+    "euler_deg": [
+     0.0,
+     55.0,
+     180.0
+    ],
+    "tolerance": 0.2
+   }
+  },
+  {
+   "name": "Blue L3 4r",
+   "alliance": "blue",
+   "piece": "coral-2025",
+   "center": [
+    -5.1266,
+    0.1643,
+    1.2597
+   ],
+   "size": [
+    0.35,
+    0.35,
+    0.35
+   ],
+   "auto_points": 6,
+   "teleop_points": 4,
+   "capacity": 1,
+   "seat": {
+    "pos": [
+     -5.1266,
+     0.1643,
+     1.2597
+    ],
+    "euler_deg": [
+     0.0,
+     55.0,
+     180.0
+    ],
+    "tolerance": 0.2
+   }
+  },
+  {
+   "name": "Blue L4 4r",
+   "alliance": "blue",
+   "piece": "coral-2025",
+   "center": [
+    -5.0166,
+    0.1643,
+    1.8288
+   ],
+   "size": [
+    0.35,
+    0.35,
+    0.35
+   ],
+   "auto_points": 7,
+   "teleop_points": 5,
+   "capacity": 1,
+   "seat": {
+    "pos": [
+     -5.0166,
+     0.1643,
+     1.8288
+    ],
+    "euler_deg": [
+     0.0,
+     0.0,
+     0.0
+    ],
+    "tolerance": 0.2
+   }
+  },
+  {
+   "name": "Blue L1 face 5",
+   "alliance": "blue",
+   "piece": "coral-2025",
+   "center": [
+    -4.6407,
+    -0.6165,
+    0.5372
+   ],
+   "size": [
+    0.3,
+    0.9,
+    0.25
+   ],
+   "euler_deg": [
+    0,
+    0,
+    240
+   ],
+   "auto_points": 3,
+   "teleop_points": 2,
+   "capacity": 4
+  },
+  {
+   "name": "Blue L2 5l",
+   "alliance": "blue",
+   "piece": "coral-2025",
+   "center": [
+    -4.5634,
+    -0.8112,
+    0.8596
+   ],
+   "size": [
+    0.35,
+    0.35,
+    0.35
+   ],
+   "auto_points": 4,
+   "teleop_points": 3,
+   "capacity": 1,
+   "seat": {
+    "pos": [
+     -4.5634,
+     -0.8112,
+     0.8596
+    ],
+    "euler_deg": [
+     0.0,
+     55.0,
+     -120.0
+    ],
+    "tolerance": 0.2
+   }
+  },
+  {
+   "name": "Blue L3 5l",
+   "alliance": "blue",
+   "piece": "coral-2025",
+   "center": [
+    -4.5634,
+    -0.8112,
+    1.2597
+   ],
+   "size": [
+    0.35,
+    0.35,
+    0.35
+   ],
+   "auto_points": 6,
+   "teleop_points": 4,
+   "capacity": 1,
+   "seat": {
+    "pos": [
+     -4.5634,
+     -0.8112,
+     1.2597
+    ],
+    "euler_deg": [
+     0.0,
+     55.0,
+     -120.0
+    ],
+    "tolerance": 0.2
+   }
+  },
+  {
+   "name": "Blue L4 5l",
+   "alliance": "blue",
+   "piece": "coral-2025",
+   "center": [
+    -4.5084,
+    -0.716,
+    1.8288
+   ],
+   "size": [
+    0.35,
+    0.35,
+    0.35
+   ],
+   "auto_points": 7,
+   "teleop_points": 5,
+   "capacity": 1,
+   "seat": {
+    "pos": [
+     -4.5084,
+     -0.716,
+     1.8288
+    ],
+    "euler_deg": [
+     0.0,
+     0.0,
+     0.0
+    ],
+    "tolerance": 0.2
+   }
+  },
+  {
+   "name": "Blue L2 5r",
+   "alliance": "blue",
+   "piece": "coral-2025",
+   "center": [
+    -4.848,
+    -0.6469,
+    0.8596
+   ],
+   "size": [
+    0.35,
+    0.35,
+    0.35
+   ],
+   "auto_points": 4,
+   "teleop_points": 3,
+   "capacity": 1,
+   "seat": {
+    "pos": [
+     -4.848,
+     -0.6469,
+     0.8596
+    ],
+    "euler_deg": [
+     0.0,
+     55.0,
+     -120.0
+    ],
+    "tolerance": 0.2
+   }
+  },
+  {
+   "name": "Blue L3 5r",
+   "alliance": "blue",
+   "piece": "coral-2025",
+   "center": [
+    -4.848,
+    -0.6469,
+    1.2597
+   ],
+   "size": [
+    0.35,
+    0.35,
+    0.35
+   ],
+   "auto_points": 6,
+   "teleop_points": 4,
+   "capacity": 1,
+   "seat": {
+    "pos": [
+     -4.848,
+     -0.6469,
+     1.2597
+    ],
+    "euler_deg": [
+     0.0,
+     55.0,
+     -120.0
+    ],
+    "tolerance": 0.2
+   }
+  },
+  {
+   "name": "Blue L4 5r",
+   "alliance": "blue",
+   "piece": "coral-2025",
+   "center": [
+    -4.793,
+    -0.5516,
+    1.8288
+   ],
+   "size": [
+    0.35,
+    0.35,
+    0.35
+   ],
+   "auto_points": 7,
+   "teleop_points": 5,
+   "capacity": 1,
+   "seat": {
+    "pos": [
+     -4.793,
+     -0.5516,
+     1.8288
+    ],
+    "euler_deg": [
+     0.0,
+     0.0,
+     0.0
+    ],
+    "tolerance": 0.2
+   }
+  },
+  {
+   "name": "Blue L1 face 6",
+   "alliance": "blue",
+   "piece": "coral-2025",
+   "center": [
+    -3.9289,
+    -0.6165,
+    0.5372
+   ],
+   "size": [
+    0.3,
+    0.9,
+    0.25
+   ],
+   "euler_deg": [
+    0,
+    0,
+    300
+   ],
+   "auto_points": 3,
+   "teleop_points": 2,
+   "capacity": 4
+  },
+  {
+   "name": "Blue L2 6l",
+   "alliance": "blue",
+   "piece": "coral-2025",
+   "center": [
+    -3.7215,
+    -0.6469,
+    0.8596
+   ],
+   "size": [
+    0.35,
+    0.35,
+    0.35
+   ],
+   "auto_points": 4,
+   "teleop_points": 3,
+   "capacity": 1,
+   "seat": {
+    "pos": [
+     -3.7215,
+     -0.6469,
+     0.8596
+    ],
+    "euler_deg": [
+     0.0,
+     55.0,
+     -60.0
+    ],
+    "tolerance": 0.2
+   }
+  },
+  {
+   "name": "Blue L3 6l",
+   "alliance": "blue",
+   "piece": "coral-2025",
+   "center": [
+    -3.7215,
+    -0.6469,
+    1.2597
+   ],
+   "size": [
+    0.35,
+    0.35,
+    0.35
+   ],
+   "auto_points": 6,
+   "teleop_points": 4,
+   "capacity": 1,
+   "seat": {
+    "pos": [
+     -3.7215,
+     -0.6469,
+     1.2597
+    ],
+    "euler_deg": [
+     0.0,
+     55.0,
+     -60.0
+    ],
+    "tolerance": 0.2
+   }
+  },
+  {
+   "name": "Blue L4 6l",
+   "alliance": "blue",
+   "piece": "coral-2025",
+   "center": [
+    -3.7765,
+    -0.5516,
+    1.8288
+   ],
+   "size": [
+    0.35,
+    0.35,
+    0.35
+   ],
+   "auto_points": 7,
+   "teleop_points": 5,
+   "capacity": 1,
+   "seat": {
+    "pos": [
+     -3.7765,
+     -0.5516,
+     1.8288
+    ],
+    "euler_deg": [
+     0.0,
+     0.0,
+     0.0
+    ],
+    "tolerance": 0.2
+   }
+  },
+  {
+   "name": "Blue L2 6r",
+   "alliance": "blue",
+   "piece": "coral-2025",
+   "center": [
+    -4.0062,
+    -0.8112,
+    0.8596
+   ],
+   "size": [
+    0.35,
+    0.35,
+    0.35
+   ],
+   "auto_points": 4,
+   "teleop_points": 3,
+   "capacity": 1,
+   "seat": {
+    "pos": [
+     -4.0062,
+     -0.8112,
+     0.8596
+    ],
+    "euler_deg": [
+     0.0,
+     55.0,
+     -60.0
+    ],
+    "tolerance": 0.2
+   }
+  },
+  {
+   "name": "Blue L3 6r",
+   "alliance": "blue",
+   "piece": "coral-2025",
+   "center": [
+    -4.0062,
+    -0.8112,
+    1.2597
+   ],
+   "size": [
+    0.35,
+    0.35,
+    0.35
+   ],
+   "auto_points": 6,
+   "teleop_points": 4,
+   "capacity": 1,
+   "seat": {
+    "pos": [
+     -4.0062,
+     -0.8112,
+     1.2597
+    ],
+    "euler_deg": [
+     0.0,
+     55.0,
+     -60.0
+    ],
+    "tolerance": 0.2
+   }
+  },
+  {
+   "name": "Blue L4 6r",
+   "alliance": "blue",
+   "piece": "coral-2025",
+   "center": [
+    -4.0612,
+    -0.716,
+    1.8288
+   ],
+   "size": [
+    0.35,
+    0.35,
+    0.35
+   ],
+   "auto_points": 7,
+   "teleop_points": 5,
+   "capacity": 1,
+   "seat": {
+    "pos": [
+     -4.0612,
+     -0.716,
+     1.8288
+    ],
+    "euler_deg": [
+     0.0,
+     0.0,
+     0.0
+    ],
+    "tolerance": 0.2
+   }
+  },
+  {
+   "name": "Blue PROCESSOR",
+   "alliance": "blue",
+   "piece": "algae-2025",
+   "center": [
+    -3.0848,
+    3.8259,
+    0.35
+   ],
+   "size": [
+    0.8,
+    0.5,
+    0.6
+   ],
+   "auto_points": 6,
+   "teleop_points": 6,
+   "capacity": 99
+  },
+  {
+   "name": "Blue NET",
+   "alliance": "blue",
+   "piece": "algae-2025",
+   "center": [
+    -0.25,
+    -1.8,
+    2.3
+   ],
+   "size": [
+    0.5,
+    3.6,
+    0.6
+   ],
+   "auto_points": 4,
+   "teleop_points": 4,
+   "capacity": 99
+  },
+  {
+   "name": "Red L1 face 1",
+   "alliance": "red",
+   "piece": "coral-2025",
+   "center": [
+    4.9966,
+    0.0,
+    0.5372
+   ],
+   "size": [
+    0.3,
+    0.9,
+    0.25
+   ],
+   "euler_deg": [
+    0,
+    0,
+    0
+   ],
+   "auto_points": 3,
+   "teleop_points": 2,
+   "capacity": 4
+  },
+  {
+   "name": "Red L2 1l",
+   "alliance": "red",
+   "piece": "coral-2025",
+   "center": [
+    5.1266,
+    0.1643,
+    0.8596
+   ],
+   "size": [
+    0.35,
+    0.35,
+    0.35
+   ],
+   "auto_points": 4,
+   "teleop_points": 3,
+   "capacity": 1,
+   "seat": {
+    "pos": [
+     5.1266,
+     0.1643,
+     0.8596
+    ],
+    "euler_deg": [
+     0.0,
+     55.0,
+     0.0
+    ],
+    "tolerance": 0.2
+   }
+  },
+  {
+   "name": "Red L3 1l",
+   "alliance": "red",
+   "piece": "coral-2025",
+   "center": [
+    5.1266,
+    0.1643,
+    1.2597
+   ],
+   "size": [
+    0.35,
+    0.35,
+    0.35
+   ],
+   "auto_points": 6,
+   "teleop_points": 4,
+   "capacity": 1,
+   "seat": {
+    "pos": [
+     5.1266,
+     0.1643,
+     1.2597
+    ],
+    "euler_deg": [
+     0.0,
+     55.0,
+     0.0
+    ],
+    "tolerance": 0.2
+   }
+  },
+  {
+   "name": "Red L4 1l",
+   "alliance": "red",
+   "piece": "coral-2025",
+   "center": [
+    5.0166,
+    0.1643,
+    1.8288
+   ],
+   "size": [
+    0.35,
+    0.35,
+    0.35
+   ],
+   "auto_points": 7,
+   "teleop_points": 5,
+   "capacity": 1,
+   "seat": {
+    "pos": [
+     5.0166,
+     0.1643,
+     1.8288
+    ],
+    "euler_deg": [
+     0.0,
+     0.0,
+     0.0
+    ],
+    "tolerance": 0.2
+   }
+  },
+  {
+   "name": "Red L2 1r",
+   "alliance": "red",
+   "piece": "coral-2025",
+   "center": [
+    5.1266,
+    -0.1643,
+    0.8596
+   ],
+   "size": [
+    0.35,
+    0.35,
+    0.35
+   ],
+   "auto_points": 4,
+   "teleop_points": 3,
+   "capacity": 1,
+   "seat": {
+    "pos": [
+     5.1266,
+     -0.1643,
+     0.8596
+    ],
+    "euler_deg": [
+     0.0,
+     55.0,
+     0.0
+    ],
+    "tolerance": 0.2
+   }
+  },
+  {
+   "name": "Red L3 1r",
+   "alliance": "red",
+   "piece": "coral-2025",
+   "center": [
+    5.1266,
+    -0.1643,
+    1.2597
+   ],
+   "size": [
+    0.35,
+    0.35,
+    0.35
+   ],
+   "auto_points": 6,
+   "teleop_points": 4,
+   "capacity": 1,
+   "seat": {
+    "pos": [
+     5.1266,
+     -0.1643,
+     1.2597
+    ],
+    "euler_deg": [
+     0.0,
+     55.0,
+     0.0
+    ],
+    "tolerance": 0.2
+   }
+  },
+  {
+   "name": "Red L4 1r",
+   "alliance": "red",
+   "piece": "coral-2025",
+   "center": [
+    5.0166,
+    -0.1643,
+    1.8288
+   ],
+   "size": [
+    0.35,
+    0.35,
+    0.35
+   ],
+   "auto_points": 7,
+   "teleop_points": 5,
+   "capacity": 1,
+   "seat": {
+    "pos": [
+     5.0166,
+     -0.1643,
+     1.8288
+    ],
+    "euler_deg": [
+     0.0,
+     0.0,
+     0.0
+    ],
+    "tolerance": 0.2
+   }
+  },
+  {
+   "name": "Red L1 face 2",
+   "alliance": "red",
+   "piece": "coral-2025",
+   "center": [
+    4.6407,
+    0.6165,
+    0.5372
+   ],
+   "size": [
+    0.3,
+    0.9,
+    0.25
+   ],
+   "euler_deg": [
+    0,
+    0,
+    60
+   ],
+   "auto_points": 3,
+   "teleop_points": 2,
+   "capacity": 4
+  },
+  {
+   "name": "Red L2 2l",
+   "alliance": "red",
+   "piece": "coral-2025",
+   "center": [
+    4.5634,
+    0.8112,
+    0.8596
+   ],
+   "size": [
+    0.35,
+    0.35,
+    0.35
+   ],
+   "auto_points": 4,
+   "teleop_points": 3,
+   "capacity": 1,
+   "seat": {
+    "pos": [
+     4.5634,
+     0.8112,
+     0.8596
+    ],
+    "euler_deg": [
+     0.0,
+     55.0,
+     60.0
+    ],
+    "tolerance": 0.2
+   }
+  },
+  {
+   "name": "Red L3 2l",
+   "alliance": "red",
+   "piece": "coral-2025",
+   "center": [
+    4.5634,
+    0.8112,
+    1.2597
+   ],
+   "size": [
+    0.35,
+    0.35,
+    0.35
+   ],
+   "auto_points": 6,
+   "teleop_points": 4,
+   "capacity": 1,
+   "seat": {
+    "pos": [
+     4.5634,
+     0.8112,
+     1.2597
+    ],
+    "euler_deg": [
+     0.0,
+     55.0,
+     60.0
+    ],
+    "tolerance": 0.2
+   }
+  },
+  {
+   "name": "Red L4 2l",
+   "alliance": "red",
+   "piece": "coral-2025",
+   "center": [
+    4.5084,
+    0.716,
+    1.8288
+   ],
+   "size": [
+    0.35,
+    0.35,
+    0.35
+   ],
+   "auto_points": 7,
+   "teleop_points": 5,
+   "capacity": 1,
+   "seat": {
+    "pos": [
+     4.5084,
+     0.716,
+     1.8288
+    ],
+    "euler_deg": [
+     0.0,
+     0.0,
+     0.0
+    ],
+    "tolerance": 0.2
+   }
+  },
+  {
+   "name": "Red L2 2r",
+   "alliance": "red",
+   "piece": "coral-2025",
+   "center": [
+    4.848,
+    0.6469,
+    0.8596
+   ],
+   "size": [
+    0.35,
+    0.35,
+    0.35
+   ],
+   "auto_points": 4,
+   "teleop_points": 3,
+   "capacity": 1,
+   "seat": {
+    "pos": [
+     4.848,
+     0.6469,
+     0.8596
+    ],
+    "euler_deg": [
+     0.0,
+     55.0,
+     60.0
+    ],
+    "tolerance": 0.2
+   }
+  },
+  {
+   "name": "Red L3 2r",
+   "alliance": "red",
+   "piece": "coral-2025",
+   "center": [
+    4.848,
+    0.6469,
+    1.2597
+   ],
+   "size": [
+    0.35,
+    0.35,
+    0.35
+   ],
+   "auto_points": 6,
+   "teleop_points": 4,
+   "capacity": 1,
+   "seat": {
+    "pos": [
+     4.848,
+     0.6469,
+     1.2597
+    ],
+    "euler_deg": [
+     0.0,
+     55.0,
+     60.0
+    ],
+    "tolerance": 0.2
+   }
+  },
+  {
+   "name": "Red L4 2r",
+   "alliance": "red",
+   "piece": "coral-2025",
+   "center": [
+    4.793,
+    0.5516,
+    1.8288
+   ],
+   "size": [
+    0.35,
+    0.35,
+    0.35
+   ],
+   "auto_points": 7,
+   "teleop_points": 5,
+   "capacity": 1,
+   "seat": {
+    "pos": [
+     4.793,
+     0.5516,
+     1.8288
+    ],
+    "euler_deg": [
+     0.0,
+     0.0,
+     0.0
+    ],
+    "tolerance": 0.2
+   }
+  },
+  {
+   "name": "Red L1 face 3",
+   "alliance": "red",
+   "piece": "coral-2025",
+   "center": [
+    3.9289,
+    0.6165,
+    0.5372
+   ],
+   "size": [
+    0.3,
+    0.9,
+    0.25
+   ],
+   "euler_deg": [
+    0,
+    0,
+    120
+   ],
+   "auto_points": 3,
+   "teleop_points": 2,
+   "capacity": 4
+  },
+  {
+   "name": "Red L2 3l",
+   "alliance": "red",
+   "piece": "coral-2025",
+   "center": [
+    3.7215,
+    0.6469,
+    0.8596
+   ],
+   "size": [
+    0.35,
+    0.35,
+    0.35
+   ],
+   "auto_points": 4,
+   "teleop_points": 3,
+   "capacity": 1,
+   "seat": {
+    "pos": [
+     3.7215,
+     0.6469,
+     0.8596
+    ],
+    "euler_deg": [
+     0.0,
+     55.0,
+     120.0
+    ],
+    "tolerance": 0.2
+   }
+  },
+  {
+   "name": "Red L3 3l",
+   "alliance": "red",
+   "piece": "coral-2025",
+   "center": [
+    3.7215,
+    0.6469,
+    1.2597
+   ],
+   "size": [
+    0.35,
+    0.35,
+    0.35
+   ],
+   "auto_points": 6,
+   "teleop_points": 4,
+   "capacity": 1,
+   "seat": {
+    "pos": [
+     3.7215,
+     0.6469,
+     1.2597
+    ],
+    "euler_deg": [
+     0.0,
+     55.0,
+     120.0
+    ],
+    "tolerance": 0.2
+   }
+  },
+  {
+   "name": "Red L4 3l",
+   "alliance": "red",
+   "piece": "coral-2025",
+   "center": [
+    3.7765,
+    0.5516,
+    1.8288
+   ],
+   "size": [
+    0.35,
+    0.35,
+    0.35
+   ],
+   "auto_points": 7,
+   "teleop_points": 5,
+   "capacity": 1,
+   "seat": {
+    "pos": [
+     3.7765,
+     0.5516,
+     1.8288
+    ],
+    "euler_deg": [
+     0.0,
+     0.0,
+     0.0
+    ],
+    "tolerance": 0.2
+   }
+  },
+  {
+   "name": "Red L2 3r",
+   "alliance": "red",
+   "piece": "coral-2025",
+   "center": [
+    4.0062,
+    0.8112,
+    0.8596
+   ],
+   "size": [
+    0.35,
+    0.35,
+    0.35
+   ],
+   "auto_points": 4,
+   "teleop_points": 3,
+   "capacity": 1,
+   "seat": {
+    "pos": [
+     4.0062,
+     0.8112,
+     0.8596
+    ],
+    "euler_deg": [
+     0.0,
+     55.0,
+     120.0
+    ],
+    "tolerance": 0.2
+   }
+  },
+  {
+   "name": "Red L3 3r",
+   "alliance": "red",
+   "piece": "coral-2025",
+   "center": [
+    4.0062,
+    0.8112,
+    1.2597
+   ],
+   "size": [
+    0.35,
+    0.35,
+    0.35
+   ],
+   "auto_points": 6,
+   "teleop_points": 4,
+   "capacity": 1,
+   "seat": {
+    "pos": [
+     4.0062,
+     0.8112,
+     1.2597
+    ],
+    "euler_deg": [
+     0.0,
+     55.0,
+     120.0
+    ],
+    "tolerance": 0.2
+   }
+  },
+  {
+   "name": "Red L4 3r",
+   "alliance": "red",
+   "piece": "coral-2025",
+   "center": [
+    4.0612,
+    0.716,
+    1.8288
+   ],
+   "size": [
+    0.35,
+    0.35,
+    0.35
+   ],
+   "auto_points": 7,
+   "teleop_points": 5,
+   "capacity": 1,
+   "seat": {
+    "pos": [
+     4.0612,
+     0.716,
+     1.8288
+    ],
+    "euler_deg": [
+     0.0,
+     0.0,
+     0.0
+    ],
+    "tolerance": 0.2
+   }
+  },
+  {
+   "name": "Red L1 face 4",
+   "alliance": "red",
+   "piece": "coral-2025",
+   "center": [
+    3.5729,
+    0.0,
+    0.5372
+   ],
+   "size": [
+    0.3,
+    0.9,
+    0.25
+   ],
+   "euler_deg": [
+    0,
+    0,
+    180
+   ],
+   "auto_points": 3,
+   "teleop_points": 2,
+   "capacity": 4
+  },
+  {
+   "name": "Red L2 4l",
+   "alliance": "red",
+   "piece": "coral-2025",
+   "center": [
+    3.4429,
+    -0.1643,
+    0.8596
+   ],
+   "size": [
+    0.35,
+    0.35,
+    0.35
+   ],
+   "auto_points": 4,
+   "teleop_points": 3,
+   "capacity": 1,
+   "seat": {
+    "pos": [
+     3.4429,
+     -0.1643,
+     0.8596
+    ],
+    "euler_deg": [
+     0.0,
+     55.0,
+     180.0
+    ],
+    "tolerance": 0.2
+   }
+  },
+  {
+   "name": "Red L3 4l",
+   "alliance": "red",
+   "piece": "coral-2025",
+   "center": [
+    3.4429,
+    -0.1643,
+    1.2597
+   ],
+   "size": [
+    0.35,
+    0.35,
+    0.35
+   ],
+   "auto_points": 6,
+   "teleop_points": 4,
+   "capacity": 1,
+   "seat": {
+    "pos": [
+     3.4429,
+     -0.1643,
+     1.2597
+    ],
+    "euler_deg": [
+     0.0,
+     55.0,
+     180.0
+    ],
+    "tolerance": 0.2
+   }
+  },
+  {
+   "name": "Red L4 4l",
+   "alliance": "red",
+   "piece": "coral-2025",
+   "center": [
+    3.5529,
+    -0.1643,
+    1.8288
+   ],
+   "size": [
+    0.35,
+    0.35,
+    0.35
+   ],
+   "auto_points": 7,
+   "teleop_points": 5,
+   "capacity": 1,
+   "seat": {
+    "pos": [
+     3.5529,
+     -0.1643,
+     1.8288
+    ],
+    "euler_deg": [
+     0.0,
+     0.0,
+     0.0
+    ],
+    "tolerance": 0.2
+   }
+  },
+  {
+   "name": "Red L2 4r",
+   "alliance": "red",
+   "piece": "coral-2025",
+   "center": [
+    3.4429,
+    0.1643,
+    0.8596
+   ],
+   "size": [
+    0.35,
+    0.35,
+    0.35
+   ],
+   "auto_points": 4,
+   "teleop_points": 3,
+   "capacity": 1,
+   "seat": {
+    "pos": [
+     3.4429,
+     0.1643,
+     0.8596
+    ],
+    "euler_deg": [
+     0.0,
+     55.0,
+     180.0
+    ],
+    "tolerance": 0.2
+   }
+  },
+  {
+   "name": "Red L3 4r",
+   "alliance": "red",
+   "piece": "coral-2025",
+   "center": [
+    3.4429,
+    0.1643,
+    1.2597
+   ],
+   "size": [
+    0.35,
+    0.35,
+    0.35
+   ],
+   "auto_points": 6,
+   "teleop_points": 4,
+   "capacity": 1,
+   "seat": {
+    "pos": [
+     3.4429,
+     0.1643,
+     1.2597
+    ],
+    "euler_deg": [
+     0.0,
+     55.0,
+     180.0
+    ],
+    "tolerance": 0.2
+   }
+  },
+  {
+   "name": "Red L4 4r",
+   "alliance": "red",
+   "piece": "coral-2025",
+   "center": [
+    3.5529,
+    0.1643,
+    1.8288
+   ],
+   "size": [
+    0.35,
+    0.35,
+    0.35
+   ],
+   "auto_points": 7,
+   "teleop_points": 5,
+   "capacity": 1,
+   "seat": {
+    "pos": [
+     3.5529,
+     0.1643,
+     1.8288
+    ],
+    "euler_deg": [
+     0.0,
+     0.0,
+     0.0
+    ],
+    "tolerance": 0.2
+   }
+  },
+  {
+   "name": "Red L1 face 5",
+   "alliance": "red",
+   "piece": "coral-2025",
+   "center": [
+    3.9289,
+    -0.6165,
+    0.5372
+   ],
+   "size": [
+    0.3,
+    0.9,
+    0.25
+   ],
+   "euler_deg": [
+    0,
+    0,
+    240
+   ],
+   "auto_points": 3,
+   "teleop_points": 2,
+   "capacity": 4
+  },
+  {
+   "name": "Red L2 5l",
+   "alliance": "red",
+   "piece": "coral-2025",
+   "center": [
+    4.0062,
+    -0.8112,
+    0.8596
+   ],
+   "size": [
+    0.35,
+    0.35,
+    0.35
+   ],
+   "auto_points": 4,
+   "teleop_points": 3,
+   "capacity": 1,
+   "seat": {
+    "pos": [
+     4.0062,
+     -0.8112,
+     0.8596
+    ],
+    "euler_deg": [
+     0.0,
+     55.0,
+     -120.0
+    ],
+    "tolerance": 0.2
+   }
+  },
+  {
+   "name": "Red L3 5l",
+   "alliance": "red",
+   "piece": "coral-2025",
+   "center": [
+    4.0062,
+    -0.8112,
+    1.2597
+   ],
+   "size": [
+    0.35,
+    0.35,
+    0.35
+   ],
+   "auto_points": 6,
+   "teleop_points": 4,
+   "capacity": 1,
+   "seat": {
+    "pos": [
+     4.0062,
+     -0.8112,
+     1.2597
+    ],
+    "euler_deg": [
+     0.0,
+     55.0,
+     -120.0
+    ],
+    "tolerance": 0.2
+   }
+  },
+  {
+   "name": "Red L4 5l",
+   "alliance": "red",
+   "piece": "coral-2025",
+   "center": [
+    4.0612,
+    -0.716,
+    1.8288
+   ],
+   "size": [
+    0.35,
+    0.35,
+    0.35
+   ],
+   "auto_points": 7,
+   "teleop_points": 5,
+   "capacity": 1,
+   "seat": {
+    "pos": [
+     4.0612,
+     -0.716,
+     1.8288
+    ],
+    "euler_deg": [
+     0.0,
+     0.0,
+     0.0
+    ],
+    "tolerance": 0.2
+   }
+  },
+  {
+   "name": "Red L2 5r",
+   "alliance": "red",
+   "piece": "coral-2025",
+   "center": [
+    3.7215,
+    -0.6469,
+    0.8596
+   ],
+   "size": [
+    0.35,
+    0.35,
+    0.35
+   ],
+   "auto_points": 4,
+   "teleop_points": 3,
+   "capacity": 1,
+   "seat": {
+    "pos": [
+     3.7215,
+     -0.6469,
+     0.8596
+    ],
+    "euler_deg": [
+     0.0,
+     55.0,
+     -120.0
+    ],
+    "tolerance": 0.2
+   }
+  },
+  {
+   "name": "Red L3 5r",
+   "alliance": "red",
+   "piece": "coral-2025",
+   "center": [
+    3.7215,
+    -0.6469,
+    1.2597
+   ],
+   "size": [
+    0.35,
+    0.35,
+    0.35
+   ],
+   "auto_points": 6,
+   "teleop_points": 4,
+   "capacity": 1,
+   "seat": {
+    "pos": [
+     3.7215,
+     -0.6469,
+     1.2597
+    ],
+    "euler_deg": [
+     0.0,
+     55.0,
+     -120.0
+    ],
+    "tolerance": 0.2
+   }
+  },
+  {
+   "name": "Red L4 5r",
+   "alliance": "red",
+   "piece": "coral-2025",
+   "center": [
+    3.7765,
+    -0.5516,
+    1.8288
+   ],
+   "size": [
+    0.35,
+    0.35,
+    0.35
+   ],
+   "auto_points": 7,
+   "teleop_points": 5,
+   "capacity": 1,
+   "seat": {
+    "pos": [
+     3.7765,
+     -0.5516,
+     1.8288
+    ],
+    "euler_deg": [
+     0.0,
+     0.0,
+     0.0
+    ],
+    "tolerance": 0.2
+   }
+  },
+  {
+   "name": "Red L1 face 6",
+   "alliance": "red",
+   "piece": "coral-2025",
+   "center": [
+    4.6407,
+    -0.6165,
+    0.5372
+   ],
+   "size": [
+    0.3,
+    0.9,
+    0.25
+   ],
+   "euler_deg": [
+    0,
+    0,
+    300
+   ],
+   "auto_points": 3,
+   "teleop_points": 2,
+   "capacity": 4
+  },
+  {
+   "name": "Red L2 6l",
+   "alliance": "red",
+   "piece": "coral-2025",
+   "center": [
+    4.848,
+    -0.6469,
+    0.8596
+   ],
+   "size": [
+    0.35,
+    0.35,
+    0.35
+   ],
+   "auto_points": 4,
+   "teleop_points": 3,
+   "capacity": 1,
+   "seat": {
+    "pos": [
+     4.848,
+     -0.6469,
+     0.8596
+    ],
+    "euler_deg": [
+     0.0,
+     55.0,
+     -60.0
+    ],
+    "tolerance": 0.2
+   }
+  },
+  {
+   "name": "Red L3 6l",
+   "alliance": "red",
+   "piece": "coral-2025",
+   "center": [
+    4.848,
+    -0.6469,
+    1.2597
+   ],
+   "size": [
+    0.35,
+    0.35,
+    0.35
+   ],
+   "auto_points": 6,
+   "teleop_points": 4,
+   "capacity": 1,
+   "seat": {
+    "pos": [
+     4.848,
+     -0.6469,
+     1.2597
+    ],
+    "euler_deg": [
+     0.0,
+     55.0,
+     -60.0
+    ],
+    "tolerance": 0.2
+   }
+  },
+  {
+   "name": "Red L4 6l",
+   "alliance": "red",
+   "piece": "coral-2025",
+   "center": [
+    4.793,
+    -0.5516,
+    1.8288
+   ],
+   "size": [
+    0.35,
+    0.35,
+    0.35
+   ],
+   "auto_points": 7,
+   "teleop_points": 5,
+   "capacity": 1,
+   "seat": {
+    "pos": [
+     4.793,
+     -0.5516,
+     1.8288
+    ],
+    "euler_deg": [
+     0.0,
+     0.0,
+     0.0
+    ],
+    "tolerance": 0.2
+   }
+  },
+  {
+   "name": "Red L2 6r",
+   "alliance": "red",
+   "piece": "coral-2025",
+   "center": [
+    4.5634,
+    -0.8112,
+    0.8596
+   ],
+   "size": [
+    0.35,
+    0.35,
+    0.35
+   ],
+   "auto_points": 4,
+   "teleop_points": 3,
+   "capacity": 1,
+   "seat": {
+    "pos": [
+     4.5634,
+     -0.8112,
+     0.8596
+    ],
+    "euler_deg": [
+     0.0,
+     55.0,
+     -60.0
+    ],
+    "tolerance": 0.2
+   }
+  },
+  {
+   "name": "Red L3 6r",
+   "alliance": "red",
+   "piece": "coral-2025",
+   "center": [
+    4.5634,
+    -0.8112,
+    1.2597
+   ],
+   "size": [
+    0.35,
+    0.35,
+    0.35
+   ],
+   "auto_points": 6,
+   "teleop_points": 4,
+   "capacity": 1,
+   "seat": {
+    "pos": [
+     4.5634,
+     -0.8112,
+     1.2597
+    ],
+    "euler_deg": [
+     0.0,
+     55.0,
+     -60.0
+    ],
+    "tolerance": 0.2
+   }
+  },
+  {
+   "name": "Red L4 6r",
+   "alliance": "red",
+   "piece": "coral-2025",
+   "center": [
+    4.5084,
+    -0.716,
+    1.8288
+   ],
+   "size": [
+    0.35,
+    0.35,
+    0.35
+   ],
+   "auto_points": 7,
+   "teleop_points": 5,
+   "capacity": 1,
+   "seat": {
+    "pos": [
+     4.5084,
+     -0.716,
+     1.8288
+    ],
+    "euler_deg": [
+     0.0,
+     0.0,
+     0.0
+    ],
+    "tolerance": 0.2
+   }
+  },
+  {
+   "name": "Red PROCESSOR",
+   "alliance": "red",
+   "piece": "algae-2025",
+   "center": [
+    3.0848,
+    -3.8259,
+    0.35
+   ],
+   "size": [
+    0.8,
+    0.5,
+    0.6
+   ],
+   "auto_points": 6,
+   "teleop_points": 6,
+   "capacity": 99
+  },
+  {
+   "name": "Red NET",
+   "alliance": "red",
+   "piece": "algae-2025",
+   "center": [
+    0.25,
+    1.8,
+    2.3
+   ],
+   "size": [
+    0.5,
+    3.6,
+    0.6
+   ],
+   "auto_points": 4,
+   "teleop_points": 4,
+   "capacity": 99
+  }
+ ],
+ "timing": {
+  "auto": 15,
+  "teleop": 135
+ },
+ "start": {
+  "pos": [
+   -7.1741,
+   -1.5
+  ],
+  "yaw_deg": 0
+ }
+}

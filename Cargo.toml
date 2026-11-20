@@ -1,0 +1,35 @@
+[workspace]
+resolver = "3"
+members = ["crates/model", "crates/library", "crates/sim", "crates/cad", "crates/app", "crates/cli"]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+license = "MIT"
+repository = "https://github.com/TylerHandel/FRC-Prototype-Simulator"
+
+[workspace.dependencies]
+model = { path = "crates/model" }
+library = { path = "crates/library" }
+sim = { path = "crates/sim" }
+cad = { path = "crates/cad" }
+serde = { version = "1", features = ["derive"] }
+serde_json = { version = "1", features = ["float_roundtrip"] }
+glam = { version = "0.30", features = ["serde"] }
+# MuJoCo 3.17.0. The library itself is fetched by tools/fetch-mujoco (see README) and found
+# through MUJOCO_DYNAMIC_LINK_DIR, set in .cargo/config.toml.
+mujoco-rs = "=7.1.0"
+rayon = "1"
+anyhow = "1"
+dirs = "6"
+
+# dependencies optimized even in debug builds, so a `cargo run` simulates smoothly
+[profile.dev.package."*"]
+opt-level = 3
+
+[profile.dev]
+opt-level = 1
+
+[profile.release]
+lto = "thin"
+codegen-units = 1

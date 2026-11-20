@@ -1,0 +1,8 @@
+{
+  "_about": "Game pieces. Shapes and sizes from the game manuals. Masses and stiffness marked estimated where the manual gives none.",
+  "pieces": [
+    { "id": "coral-2025", "name": "CORAL", "game": "REEFSCAPE 2025", "shape": { "tube": { "outer_d_in": 4.5, "inner_d_in": 4.026, "length_in": 11.875 } }, "mass_kg": 0.86, "surface": "pvc", "law": "rigid", "color": "#f2efe6", "source": "2025 manual: 4 in. Schedule 40 PVC, 11 7/8 in. long. Mass worked out from the pipe's wall and PVC's density (1.4 g/cc)", "measured": false },
+    { "id": "algae-2025", "name": "ALGAE", "game": "REEFSCAPE 2025", "shape": { "sphere": { "d_in": 16.25 } }, "mass_kg": 0.68, "surface": "playground-rubber", "law": { "inflated": { "psi": [0.5, 1.0, 1.5], "choice": 1, "skin_n_per_m": 400 } }, "color": "#2bb39a", "source": "2025 manual: 16.25 in. rubber playground ball, inflated to a diameter gauge. The manual gives no pressure: the three pressures and the mass are estimates (owner agreed 2026-11-20)", "measured": false },
+    { "id": "fuel-2026", "name": "FUEL", "game": "REBUILT 2026", "shape": { "sphere": { "d_in": 5.91 } }, "mass_kg": 0.215, "surface": "foam", "law": { "foam": { "k0_lb_per_in": 19.8, "xc_in": 1.0 } }, "color": "#f4d03f", "source": "AndyMark 2026 Scoring Element Testing Report (aged balls), as rebuilt-sim-2026 js/constants.js", "measured": true }
+  ]
+}
