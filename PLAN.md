@@ -164,6 +164,53 @@ distinct parts; 1,092 instances are hardware by name, 865 are not). What it show
   goes through the BOM's occurrence paths, not through names.
 - Dropping hardware before meshing and measuring matters: it is 56 % of the instances.
 
+**6. Mates, where Onshape serves them** (`spikes/onshape_mates.py`). One call returns every mate at
+every level of an assembly, each with the two parts it joins, its type, its axis and origin, and its
+limits where set. Which documents serve it:
+
+| Document | Assembly definition |
+|---|---|
+| The owner's own (8793's 2026 robot) | Served: 4.1 MB in 26 s |
+| Another team's fully public document (1706's 2026 robot) | Served: 2.2 MB in 7 s |
+| Another team's link-shared, export-only document (2910's Spectre) | Refused, as are its feature list, mate values and configurations |
+
+Turning the owner's robot's mates into links and joints (join parts across Fastened mates and mate
+groups, treat a sub-assembly Onshape marks rigid as one link, and keep every other mate between two
+different links):
+
+- 2,071 parts become one 1,286-part chassis, a 156-part turret, four 42-part swerve steering
+  modules, the shooter's moving pieces, and small groups.
+- 25 joints, among them the turret's hinge with its 0 to 360 degree limit, the four steering axes
+  at (plus or minus 0.254, plus or minus 0.254) m pointing straight up, the shooter's hinges, the
+  intake's, and four bumper plungers as slides.
+- 81 parts end up alone: parts nobody mated to anything. The importer attaches each to the nearest
+  link in its sub-assembly and says so.
+- 1706's robot shows the other untidiness: wheels held on shafts by a slider and a planar mate
+  together, which add up to "fixed" but are neither alone. Mates between the same two links have
+  to be combined before they are read. So mates are strong evidence, shown as proposals like
+  everything else, not imported as truth.
+
+**7. Two poses, where it does not** (`spikes/step_tree.py`, `spikes/pose_diff.py`). Spectre's
+document has a second assembly, "Scoring Positions": the same robot at its L2 scoring pose, beside a
+REEF with a CORAL on it. Exported as STEP (3 more API calls, 179 MB) and compared with the stowed
+export, part by part:
+
+- Parts with names that occur once (486 of 1,957) are matched directly and grouped by the rigid
+  move they made between the poses. The rest are repeats (the same screw eight times), which the
+  two exports list in no dependable order; each is given to the link whose move lands it on one of
+  its twins. All 1,468 were placed.
+- Result: 1,953 of 1,957 parts fall into six links. The base (1,046 parts). Arm stage 0 (313), which
+  turned 68.0 degrees about the robot's x axis through (0, 0.260, 0.324) m: the pivot, found
+  exactly. Stage 1 (147) and stage 2 (40), each of which slid 19.87 in. along the arm against the
+  stage before, which also shows the rigging is one-to-one. The intake and wrist (301), which
+  turned. And 106 swerve module parts that shifted 0.25 in., a configuration difference to dismiss.
+- What it cannot do alone: it picked the wrong parent for the wrist (the link it turned least
+  against, the base, when it rides on stage 2), so parents come from which links touch at the
+  axis. A joint that did not move between the poses is not seen. And the travel seen is a lower
+  bound, not a limit.
+
+Reading placements from a 176 MB STEP takes 105 s here; the comparison itself is instant.
+
 ## Decisions
 
 **D1. A new Rust workspace. Code is copied in, not depended on.** Bevy 0.20 for the app, plain Rust
@@ -287,9 +334,8 @@ and radii are read, not fitted), which Onshape's glTF export does not.
 - *Paste a link.* The app asks Onshape to translate the assembly to STEP, downloads it, and fetches
   the bill of materials: each part's material, mass and vendor part number. The BOM fills materials
   and masses, and matches wheels and motors to the library by name ("4 in. Compliant Wheel",
-  "WCP-1362 ... 45A", "Kraken X60"). Where the API serves the assembly definition (the owner's own
-  documents), mates become proposed joints with their limits. On other teams' export-only
-  documents it is refused (measured below), and joints come from the geometry.
+  "WCP-1362 ... 45A", "Kraken X60"). It also asks for the assembly definition, which holds the
+  mates (D20).
 - *The sidecar.* `tools/cadread` is a small C++ program, a port of `step2glb.py` and `step-axes.py`,
   whose calls map one to one onto the C++ API. It reads STEP and writes a *cadpack*: a GLB with the
   assembly tree, names and colors, plus a JSON of per-part facts (volume, centre of mass, bounding
@@ -376,6 +422,48 @@ with the common families at their published durometers (AndyMark compliant, WCP 
 solid treads, silicone and urethane tube rollers, mecanum and omni intake wheels), each entry
 editable and each new wheel a short form.
 
+**D20. Links and joints are proposed from three sources, best first.** All three produce the same
+thing, a proposal the user accepts, fixes or dismisses, so the rest of the app does not care which
+ran. All three were tried on real robots (measurements 6 and 7).
+
+1. *Mates.* Onshape's assembly definition lists every mate. It is served for the owner's own
+   documents and for fully public ones, in one API call. Fastened mates and mate groups make the
+   links; revolute, slider and cylindrical mates between links make hinges and slides, with the
+   mate's own axis and limits. Mates between the same two links are combined first. Parts nobody
+   mated join the nearest link in their sub-assembly, flagged. A joint with a few small parts on
+   one side (a wheel on a shaft, a roller in its bearings) is proposed as a roller, not as a
+   mechanism joint.
+2. *Two poses.* For a document that refuses its mates but has the robot in more than one pose (a
+   second assembly, or a configuration), export both and compare. Parts that made the same move are
+   a link; one link's move against its neighbour is a hinge (axis, point, angle) or a slide
+   (direction, travel). More poses find more joints and widen the travel seen. The app offers this
+   whenever a document has another assembly containing the same top-level sub-assembly.
+3. *Geometry and a click.* Always available. Links from the sub-assembly tree; an axis from a
+   picked cylinder face shared by two links, or a direction from a picked flat or edge; limits by
+   dragging the joint to its stops.
+
+For the owner's own CAD, the first is the normal path and costs nothing extra, so mating the real
+freedoms in Onshape (a revolute on the arm, a slider on each stage, limits set) is the fastest way
+to a rigged robot. The import guide says so.
+
+**D21. The app updates itself, as the 2026 native simulator does.** The same mechanism, copied from
+`rebuilt-sim-native` (`crates/app/src/update.rs`, `main.rs`, `.github/workflows/release.yml`):
+
+- Every push to `main` builds the Windows app, packs it with Velopack's `vpk` and publishes a
+  GitHub Release (version `0.1.<run number>`), with a delta from the last one. The first install is
+  one `Setup.exe` from the latest release.
+- The installed app checks at start and every minute, in a background thread, reading the latest
+  release's files directly (not the GitHub API, so the check never hits a rate limit). It downloads
+  a new version in the background and shows the state in the corner ("v0.1.212, up to date").
+- Once a version is downloaded, the app restarts into it by itself after a 5 s notice when nothing
+  would be lost: on the Home screen, or with a project open and saved and no run or sweep going. A
+  click skips the wait. Otherwise a "Restart to update" button waits. Closing the app installs it
+  too. This is the 2026 rule (wait for the match to end) restated for an editor.
+- It autosaves before restarting and reopens the same project and workspace after.
+- The `velopack` crate and the `vpk` tool are pinned to the same version. The repository must stay
+  public, or the download needs a token.
+- It is in M0, and M0's gate includes the owner watching one installed copy update itself.
+
 ## The robot description
 
 Shown as an outline. The real schema is `crates/model`.
@@ -459,9 +547,9 @@ under 30 minutes with the written guide.
 - CORAL: a tube, 4 in. Schedule 40 PVC (4.5 in. outside), 11 7/8 in. long, rigid; the compliance is
   in whatever grips it. Take masses and tolerances from the game manual, not from this file.
 - ALGAE: a 16.25 in. (plus or minus 1/4 in.) rubber playground ball, modelled as inflated (D4) with
-  its pressure as a range. The owner asked for the published PSI range. The 2025 manual sets
-  inflation by a diameter gauge, and no PSI figure was found for it, so the pack ships a low,
-  middle and high pressure marked *estimated* until the owner names the source.
+  its pressure as a range. The 2025 manual sets inflation by a diameter gauge and gives no PSI,
+  so the pack ships a low, middle and high pressure marked *estimated* (the owner agreed), chosen
+  so the ball's squash under its own weight and in a hand press looks right, and open to edit.
 - REEF branches are flagged *enters a bore*. A CORAL counts as scored when seated on a branch and at
   rest; the trough, PROCESSOR and NET are zones.
 - CORAL stations are feeders. CAGES hang from a ball joint, for climbs later.
@@ -482,8 +570,7 @@ elevator: a pivoting, telescoping arm with a wristed end effector that handles b
 ALGAE, on SDS MK4i swerve.
 
 - Document `f33ab032b00dc4b711aa86a6`, element `415a66cb7efdf4aba6199086` ("2025 Top Level
-  Assembly"); take the workspace from the document's `defaultWorkspace`. A second assembly,
-  "Scoring Positions", holds the arm in its scoring poses and gives joint ranges to check against.
+  Assembly"); take the workspace from the document's `defaultWorkspace`.
 - Release thread: https://www.chiefdelphi.com/t/2910-cad-and-tech-binder-release-2025/500310 (the
   tech binder is linked there). The team says in it that the intake's belts were changed to chain
   and gears after skipping under load, and that the intake's cross rod went from a 1/4 in. bolt to
@@ -491,7 +578,10 @@ ALGAE, on SDS MK4i swerve.
 - Its CAD is fetched with the owner's keys by `tools/fetch-fixture` into a cache outside the
   repository. It is another team's work: never commit it, its meshes or its cadpack. CI runs on a
   small generated robot; the Spectre gates are run locally and their results written here.
-- It has no mates through the API, so it exercises the harder path: every joint from geometry.
+- It has no mates through the API, so it exercises the harder paths: joints from two poses (the
+  "Scoring Positions" assembly, element `54598a0ed9dd23f1933582ac`, is the robot at L2 beside a
+  REEF with a CORAL on it) and from geometry. That assembly also shows where the real robot holds a
+  CORAL when it scores, which is the pose M5's gate has to reach.
 
 ## Layout
 
@@ -542,8 +632,9 @@ Workspace and crates. CI: tests on Linux, build and Velopack release on Windows 
 library beside the exe. Bevy and egui shell with the five workspaces empty, the sim thread and
 snapshot, recording and scrubbing. `model` with schema v1, ids, undo. The library with motors,
 wheels and materials. `cli run`.
-**Gate:** both spikes rewritten as Rust tests land within 5 % of the Python numbers. The installer
-runs on Windows and updates itself.
+**Gate:** both physics spikes rewritten as Rust tests land within 5 % of the Python numbers. The
+installer runs on Windows, and the owner sees an installed copy find, download and restart into the
+next release by itself (D21).
 
 ### M1: the Bench
 `sim::drives`, `sim::electrical`, `sim::contact` for rollers, pads and belts against analytic
@@ -570,8 +661,9 @@ robot built from the palette in under 10 minutes drives, picks up and places.
 **Release:** build an archetype and drive it on a flat floor.
 
 ### M3: CAD
-`cadread` and its CI build. Import from an Onshape link (STEP translation, BOM, and mates where the
-API serves them) and from a STEP file, with progress and the API call count. Parts tree. Links,
+`cadread` and its CI build. Import from an Onshape link (STEP translation, BOM, mates) and from a
+STEP file, with progress and the API call count. Links and joints proposed from mates, from two
+poses, and from geometry (D20). Parts tree. Links,
 joints and rollers by clicking geometry. Proposals, including wheels and motors matched to the
 library from BOM names. Materials and mass from the BOM, else density times volume, with a per-link
 override and "scale to the weighed total". Collision levels. Re-import with markup kept. Laying a
@@ -579,8 +671,10 @@ template over CAD.
 **Gate:** Spectre (see "The test robot") imports from its link in under 5 minutes plus Onshape's own
 translation time, and the view stays above 60 fps. The 30-minute rigging test passes on it.
 Re-import after moving, renaming and replacing parts keeps every piece of markup whose part still
-exists, and lists the rest. One of the owner's own documents imports with its mates proposed as
-joints.
+exists, and lists the rest. From mates: the owner's 2026 robot (document `e34c8122db6474f80cc7e909`)
+imports with its turret, four steering axes and intake pivot proposed correctly, limits included.
+From two poses: Spectre's pivot and both arm slides are proposed from its stowed and scoring
+exports, and the wrist once parents are taken from contact.
 **Release:** your CAD, moving under its own motors.
 
 ### M4: REEFSCAPE
@@ -664,17 +758,19 @@ under 2 minutes. The REBUILT pack is built from the guide without touching code.
    wheels publish a durometer, so stiffness starts from that (D4), and the press-test form moves to
    M8.
 5. **Wheels must be easy to swap.** Comparing compliance is a main reason for the tool (D19).
-6. **ALGAE from its published PSI range.** None was found (see the REEFSCAPE section), so this is
-   the one answer still open.
+6. **ALGAE at an estimated PSI.** No published figure was found, and the owner agreed to an
+   estimate (see the REEFSCAPE section).
 7. **Windows only for now, with macOS left open** (D18).
+8. **Auto-update is required**, as in the Rust version of the 2026 simulator (D21).
+9. **Mates: work out a solution before building.** Done (D20, measurements 6 and 7): mates from the
+   API for the owner's own and public documents, two-pose comparison for locked ones, and clicking
+   geometry always.
 
-Not answered, so the defaults stand: no AI matches before kickoff (M7).
+Not answered, so the default stands: no AI matches before kickoff (M7).
 
-Still needed from the owner:
-
-- The source for ALGAE's PSI range, or agreement to use an estimated range.
-- One of your own Onshape documents (any robot or mechanism with mates) for M3's mates-to-joints
-  check.
+Nothing is waiting on the owner. Two things would help when there is time: mating the real freedoms
+(with limits) in your own Onshape assemblies, and a press test of the wheels you most want to
+compare.
 
 ## For the model building this
 
