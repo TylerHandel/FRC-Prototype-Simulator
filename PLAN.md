@@ -18,9 +18,14 @@ the way `rebuilt-sim-native/PLAN.md` does.
    stretch and geared motors that are stable. The roller-to-piece contact is an elastic foundation
    (a bed of springs) written here, with stiffness in real units taken from press tests. Both were
    tried before this plan was written (see "What was measured").
-4. **The game is data.** 2025 REEFSCAPE is the first game pack and the test bed. A game pack is made
+4. **CAD comes from an Onshape link, as STEP.** The app proposes links, rollers, wheels and motors
+   from the geometry and the bill of materials; you accept or fix them. Markup survives a
+   re-import. The test robot is 2910's 2025 Spectre.
+5. **Wheels swap in one pick.** Stiffness starts from each wheel's published durometer, so wheels
+   can be compared on the same intake before anything is press-tested.
+6. **The game is data.** 2025 REEFSCAPE is the first game pack and the test bed. A game pack is made
    in the same editor as a robot, so the 2027 field can be brought in during kickoff weekend.
-5. **Kickoff is early January 2027.** The order of work puts what kickoff needs first: the bench,
+7. **Kickoff is early January 2027.** The order of work puts what kickoff needs first: the bench,
    Concept robots, CAD rigging, and making a game pack. AI matches and running real robot code come
    after.
 
@@ -133,13 +138,31 @@ results on MuJoCo 3.17.0 and 4.0.1.
 | Document and element list | Served. The document grants `EXPORT` and anonymous access only. The workspace in the public link was stale; the document's `defaultWorkspace` is the one to use. |
 | Assembly definition (the mates) | Refused, 403. The 2026 notes record the same for 7769's export-only document. |
 | Bill of materials | Served, 5.3 MB in 8 s: 655 rows, 1,919 parts. 585 rows carry a mass, 557 a material. |
-| STEP translation | STEP_RESULT |
+| STEP translation | Served. Onshape took about 2 minutes to translate; the file is 176 MB and downloaded in 24 s. |
 
 The BOM names what the app needs to match: 16 Kraken X60 and 4 Kraken X44, SDS MK4i modules with
 4 in. nitrile treads, two "4 in. OD x 1 in. Wide Straight Flex Wheel (... 45A) (WCP-1362)" and four
 "AM-3562 3/8 in. Hex Bore 4 in. Compliant Wheel", with materials such as 6061, 7075, polycarbonate,
-Delrin and printed Onyx. Hardware is 209 rows and more than half the part count. The whole exchange
-cost about 10 API calls.
+Delrin and printed Onyx. Hardware is 209 rows and more than half the part count. A clean import is
+8 calls: the document, the BOM, the assembly definition, the translation request, three polls and
+the download. Poll with a growing delay, since every poll counts against the year.
+
+`step-axes.py` over that STEP, unfiltered: 157 s and 1.5 GB of memory for 1,957 part instances (483
+distinct parts; 1,092 instances are hardware by name, 865 are not). What it shows for the importer:
+
+- The tree gives the links. Under the top level are five subassemblies: Drivebase (838 parts),
+  Pivot (269), Arm (434, itself split into Stage 0, 1 and 2), Intake & Wrist (299), Climber (117).
+- Wheels are found exactly. The four intake compliant wheels and the two climber flex wheels each
+  come back with a 2.00 in. radius on a tilted axis (the arm is not square to the frame), and the
+  swerve treads at 1.98 in.
+- Geometry alone over-proposes. "A round part that fills its bounding box about its axis" matched
+  83 parts, nearly all shafts, columns, plugs and spacers, and only among axis-aligned parts. So
+  roller proposals rank by name and BOM first (wheel, roller, tread, a vendor wheel number) and use
+  geometry to confirm and to measure.
+- Names differ between the two sources. The BOM row is "AM-3562 3/8 in. Hex Bore 4 in. Compliant
+  Wheel"; the STEP part is "4IN Compliant Wheel FINAL Overmold". Matching BOM rows to STEP parts
+  goes through the BOM's occurrence paths, not through names.
+- Dropping hardware before meshing and measuring matters: it is 56 % of the instances.
 
 ## Decisions
 
@@ -276,7 +299,7 @@ and radii are read, not fitted), which Onshape's glTF export does not.
 - *Also.* A STEP file from disk, for CAD from anywhere else. Plain meshes (GLB, OBJ, STL) import
   without the per-part facts.
 - *API budget.* The owner's plan is EDU Educator, capped at about 2,500 calls a year. An import
-  costs about 10 (measured), re-import of an unchanged version costs one, and everything fetched is
+  costs about 8 (measured), re-import of an unchanged version costs one, and everything fetched is
   cached in the project. The app shows the calls used this year.
 - *Keys.* Read from `ONSHAPE_ACCESS_KEY` and `ONSHAPE_SECRET_KEY` or the system keychain. Never
   written to a project file or a log.
@@ -392,8 +415,8 @@ them.
 | Workspace | What you do there |
 |---|---|
 | **Build** | Concept robots from a palette: a drivetrain, then elevator, arm, wrist, intake, shooter, claw, climber. Each is a block with handles and a few numbers. Driveable from the first block. |
-| **Rig** | CAD in. Group parts into links, click geometry to make joints and rollers, paint materials. |
-| **Bench** | One mechanism on a stand, a feeder throwing pieces at it, live plots, sweeps. |
+| **Rig** | CAD in from an Onshape link or a STEP file. Group parts into links, click geometry to make joints and rollers, paint materials. |
+| **Bench** | One mechanism on a stand, a feeder throwing pieces at it, wheels swapped and compared side by side, live plots, sweeps. |
 | **Field** | The game: practice, timed cycles, matches. |
 | **Analyze** | Recordings, plots, A against B between variants, power budget, reports. |
 
@@ -404,9 +427,10 @@ Rules the interface is held to:
    coordinates the CAD already holds.
 2. **Nothing required is blank.** Every field starts from the CAD, the library or a sensible
    default, and shows which. A typed value is marked as typed and can be reset.
-3. **Guess, then show the guess.** On import the app proposes links from the top-level
-   subassemblies, rollers from coaxial cylinder parts with wheel-like proportions, swerve modules
-   from four matching corner assemblies, and materials from part names and colors. Proposals are
+3. **Guess, then show the guess.** On import the app proposes links from the subassembly tree,
+   wheels and rollers from BOM and part names confirmed by their cylinder geometry, motors from
+   the BOM, swerve modules from four matching corner assemblies, and materials from the BOM, then
+   from part names and colors. Proposals are
    drawn as ghosts to accept, fix or dismiss, singly or all at once.
 4. **Templates carry the hard parts.** "Elevator" asks for stages, rigging, spool diameter and
    motor, and builds the joints and couplings. The same for swerve, arm, wrist, telescope, four-bar,
@@ -659,6 +683,10 @@ Still needed from the owner:
   header.
 - Fetch MuJoCo's release archive for the pinned version and set `MUJOCO_DYNAMIC_LINK_DIR`; do not
   rely on the binding's own download.
+- Onshape: the owner's keys are in `ONSHAPE_ACCESS_KEY` and `ONSHAPE_SECRET_KEY`. Never print,
+  log or commit them. The account is capped at about 2,500 calls a year, so cache every response,
+  never call the API from a test or from CI, and never poll faster than every 30 s.
+- Spectre is another team's CAD. Keep it and everything derived from it out of the repository.
 - A milestone's gate is its tests. Write the gate's tests first where they are closed-form.
 - Keep physics in SI and `f64`. Keep every engine call inside `sim::engine`.
 - When a number is not known (a mass, a stiffness, a threshold), put it in the library marked
