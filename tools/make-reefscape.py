@@ -64,8 +64,9 @@ for side, sx, alliance, col in ((-1, -REEF_X, "blue", "#3b6fc4"), (1, REEF_X, "r
                 zones.append(dict(name=f"{A} {lv} {k + 1}{b[0]}", alliance=alliance, piece="coral-2025",
                                   center=[round(s, 4) for s in seat], size=[0.35, 0.35, 0.35], auto_points=pa, teleop_points=pt, capacity=1,
                                   seat=dict(pos=[round(s, 4) for s in seat], euler_deg=e, tolerance=0.2)))
-    # CORAL STATIONS in the alliance wall's corners, feeding toward the field
-    wx = -side * HX
+    # CORAL STATIONS in the corners of the alliance's own wall, feeding toward the field (AprilTags
+    # 12 and 13 for blue, 1 and 2 for red)
+    wx = side * HX
     for yy in (1, -1):
         p = [wx - side * 0.55, yy * (W / 2 - 0.55), 1.0]
         box(f"{A} CORAL STATION {'north' if yy > 0 else 'south'}", [wx - side * 0.35, yy * (W / 2 - 0.35), 0.6], [0.25, 1.9, 1.2], yaw=yy * side * 54, color="#8d8d93")
@@ -74,15 +75,16 @@ for side, sx, alliance, col in ((-1, -REEF_X, "blue", "#3b6fc4"), (1, REEF_X, "r
         feeders.append(dict(name=f"{A} CORAL STATION {'north' if yy > 0 else 'south'}", piece="coral-2025", alliance=alliance,
                             pos=[round(p[0] - side * 0.35, 4), round(p[1] - yy * 0.45, 4), 0.9], dir=[round(d[0] / n, 4), round(d[1] / n, 4), -0.3],
                             speed=1.2, interval=1.5, reach=1.3))
-    # PROCESSOR on the side wall near the alliance's own end, scored with ALGAE
-    px = sx - side * 1.2
-    box(f"{A} PROCESSOR", [px, -side * (W / 2 + 0.2), 0.3], [0.8, 0.4, 0.6], color="#5d6168")
-    zones.append(dict(name=f"{A} PROCESSOR", alliance=alliance, piece="algae-2025", center=[round(px, 4), round(-side * (W / 2 - 0.2), 4), 0.35],
+    # PROCESSOR in the side wall between the alliance's REEF and the centre, scored with ALGAE (blue's
+    # in the south wall at AprilTag 16, red's in the north wall at 3)
+    px = sx - side * 1.5
+    box(f"{A} PROCESSOR", [px, side * (W / 2 + 0.2), 0.3], [0.8, 0.4, 0.6], color="#5d6168")
+    zones.append(dict(name=f"{A} PROCESSOR", alliance=alliance, piece="algae-2025", center=[round(px, 4), round(side * (W / 2 - 0.2), 4), 0.35],
                       size=[0.8, 0.5, 0.6], auto_points=6, teleop_points=6, capacity=99))
-    # staged pieces between the REEF and the BARGE: CORAL upright with ALGAE on top
+    # staged pieces on their marks 48 in. from the alliance wall: CORAL upright with ALGAE on top
     for yy in (-1.83, 0.0, 1.83):
-        pieces.append(dict(piece="coral-2025", pos=[round(sx * 0.48, 4), yy, 0.151], upright=True))
-        pieces.append(dict(piece="algae-2025", pos=[round(sx * 0.48, 4), yy, 0.302 + 0.207]))
+        pieces.append(dict(piece="coral-2025", pos=[round(side * (HX - 48 * IN), 4), yy, 0.151], upright=True))
+        pieces.append(dict(piece="algae-2025", pos=[round(side * (HX - 48 * IN), 4), yy, 0.302 + 0.207]))
     # NET: ALGAE thrown over the BARGE's top on this alliance's side
     zones.append(dict(name=f"{A} NET", alliance=alliance, piece="algae-2025", center=[round(side * 0.25, 4), round(side * 1.8, 4), 2.3],
                       size=[0.5, 3.6, 0.6], auto_points=4, teleop_points=4, capacity=99))
@@ -98,7 +100,7 @@ game = dict(
     about="A simplified field: REEF, BARGE, CORAL STATIONS and PROCESSOR as blocks in roughly the right places. Scoring zones count CORAL on branches and in the trough, ALGAE in the PROCESSOR and NET. Import the official field CAD for exact geometry.",
     field=dict(length=round(L, 4), width=round(W, 4), carpet_friction=1.0),
     statics=statics, pieces=pieces, feeders=feeders, zones=zones,
-    timing=dict(auto=15, teleop=135), start=dict(pos=[round(-HX + 1.6, 4), -1.5], yaw_deg=0))
+    timing=dict(auto=15, teleop=135), start=dict(pos=[round(-HX + 7.2, 4), -1.5], yaw_deg=0))
 
 out = os.path.join(os.path.dirname(__file__), "..", "assets", "games", "reefscape-2025", "game.json")
 json.dump(game, open(out, "w"), indent=1)

@@ -766,11 +766,15 @@ impl World {
                 if self.pieces[pi].at != PieceWhere::Free { continue; }
                 let k = &self.kinds[self.pieces[pi].kind];
                 if !filter.is_empty() && !filter.contains(&k.id) { continue; }
-                let (pos, _) = self.engine.free_pose(self.pieces[pi].jnt);
+                let (pos, quat) = self.engine.free_pose(self.pieces[pi].jnt);
                 let l = inv.apply(pos);
                 let inside = (0..3).all(|i| l[i].abs() <= size[i] / 2.0 + 0.4 * k.bound().min(0.1));
                 if inside && running && free_holder.is_some() {
                     seen.push(pi);
+                    // the rollers have it: it moves with the mechanism while it's drawn in (a piece
+                    // dropped through a funnel doesn't fall out the bottom)
+                    let (lv, _) = self.engine.velocity_at(self.links[link].body, pos);
+                    self.engine.set_free(self.pieces[pi].jnt, pos, quat, lv, [0.0; 3]);
                     let t = self.mechs[mi].dwell.entry(pi).or_insert(0.0);
                     *t += self.dt;
                     if *t >= acquire {
@@ -838,7 +842,7 @@ impl World {
 
     fn game_step(&mut self) {
         let dt = self.dt;
-        if self.matched.running { self.matched.time += dt; } else { self.matched.time += dt; }
+        self.matched.time += dt;
         let g = self.game.clone().unwrap();
         // pieces at rest in a zone without a seat (the trough, the PROCESSOR, the NET) count once
         for pi in 0..self.pieces.len() {
@@ -955,6 +959,20 @@ impl World {
         let pl = control::Plant { kind: jr.kind, q: self.engine.q(jr.jnt), qd: 0.0, inertia: d.inertia, bias, range: jr.range, bus: 12.0 };
         Some(control::gains_from_model(&pl, &d.motor))
     }
+
+    /// each Concept holder: its mechanism, where it is, and whether it holds a piece
+    pub fn holders(&self) -> Vec<(Id, V3, bool)> {
+        self.mechs.iter().flat_map(|m| m.holders.iter().map(move |h| (m.id, h, m.full))).filter(|x| !x.2)
+            .map(|(id, h, _)| (id, self.link_pose(h.link).mul(&h.pose).pos, h.piece.is_some())).collect()
+    }
+
+    /// each Concept pickup zone: its mechanism, its pose in the world and its size
+    pub fn pickup_zones(&self) -> Vec<(Id, Pose, V3)> {
+        self.mechs.iter().filter(|m| !m.full).filter_map(|m| m.pickup.as_ref().map(|p| (m.id, self.link_pose(p.0).mul(&p.1), p.2))).collect()
+    }
+
+    /// the chassis's pose in the world
+    pub fn chassis_pose(&self) -> Pose { self.link_pose(self.links.iter().position(|l| l.id == CHASSIS).unwrap_or(0)) }
 
     /// pieces in the world, free or held (for the Bench's report)
     pub fn piece_positions(&self) -> Vec<(V3, bool)> {

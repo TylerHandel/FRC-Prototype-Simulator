@@ -33,7 +33,10 @@ pub fn fresh_dir(parent: &Path, name: &str) -> PathBuf {
 pub fn starters() -> Vec<(&'static str, &'static str, Project)> {
     let mut v = vec![];
     let mut p = Project::new("Elevator and claw");
-    let e = templates::add(&mut p.robot, Template::elevator_default()).unwrap();
+    // forward enough that the claw reaches over the REEF's base to an L4 branch
+    let mut el = Template::elevator_default();
+    el.mount.offset[0] = 0.2;
+    let e = templates::add(&mut p.robot, el).unwrap();
     let mut c = Template::claw_default();
     c.mount.on = Some(e);
     templates::add(&mut p.robot, c).unwrap();

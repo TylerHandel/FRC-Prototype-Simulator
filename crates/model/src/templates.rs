@@ -55,7 +55,7 @@ impl Template {
     /// a 2-stage cascade elevator at the robot's centre, for REEFSCAPE L4
     pub fn elevator_default() -> Self {
         Template { mount: Mount { on: None, offset: [-0.05, 0.0, 0.09] }, params: Params::Elevator {
-            stages: 2, travel: 1.3, height: 0.95, width: 0.3, rigging: Rigging::Cascade, spool_diameter: 1.75 * IN,
+            stages: 2, travel: 1.45, height: 0.95, width: 0.3, rigging: Rigging::Cascade, spool_diameter: 1.75 * IN,
             motor: "kraken-x60-foc".into(), motors: 2, ratio: 5.0, carriage_mass: 3.0, stage_mass: 2.5 } }
     }
     pub fn arm_default() -> Self {

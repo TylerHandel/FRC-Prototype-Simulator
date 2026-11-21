@@ -212,3 +212,127 @@ fn dump_carpet_xml() {
     let w = World::new(&Project::new("d"), &lib, Scene::carpet()).unwrap();
     std::fs::write(std::env::var("XML_OUT").unwrap(), &w.mjcf).unwrap();
 }
+
+/// A scripted driver for the field gates: drives field-relative to a pose, with a P loop on place
+/// and heading, while the sim steps.
+struct Driver { elev: Id, claw_drive: Id, claw: Id }
+
+fn yaw_of(q: Quat) -> f64 { let x = qrot(q, [1.0, 0.0, 0.0]); x[1].atan2(x[0]) }
+fn wrap(a: f64) -> f64 { (a + std::f64::consts::PI).rem_euclid(std::f64::consts::TAU) - std::f64::consts::PI }
+
+impl Driver {
+    /// drives to (x, y, yaw); false if it didn't get there in `limit` seconds
+    fn go(&self, w: &mut World, to: [f64; 3], limit: f64, mut each: impl FnMut(&mut World, f64)) -> bool {
+        let t0 = w.time;
+        while w.time - t0 < limit {
+            let c = w.chassis_pose();
+            let (ex, ey) = (to[0] - c.pos[0], to[1] - c.pos[1]);
+            let d = ex.hypot(ey);
+            let eyaw = wrap(to[2] - yaw_of(c.quat));
+            if d < 0.03 && eyaw.abs() < 0.03 { w.cmd.drive = [0.0; 3]; for _ in 0..50 { w.step(); } return true; }
+            let v = (3.0 * d).min(3.5);
+            w.cmd.drive = if d > 1e-6 { [ex / d * v, ey / d * v, (5.0 * eyaw).clamp(-4.0, 4.0)] } else { [0.0, 0.0, (5.0 * eyaw).clamp(-4.0, 4.0)] };
+            each(w, d);
+            w.step();
+        }
+        w.cmd.drive = [0.0; 3];
+        false
+    }
+    /// waypoints on a circle round the REEF, the short way, when the straight line would cross it
+    fn around(&self, w: &mut World, reef: V3, to: [f64; 3]) {
+        let c = w.chassis_pose().pos;
+        let (a0, a1) = ((c[1] - reef[1]).atan2(c[0] - reef[0]), (to[1] - reef[1]).atan2(to[0] - reef[0]));
+        let turn = wrap(a1 - a0);
+        let steps = (turn.abs() / (std::f64::consts::PI / 4.0)).floor() as usize;
+        for i in 1..=steps {
+            let a = a0 + turn * i as f64 / (steps + 1) as f64;
+            let p = [reef[0] + 2.0 * a.cos(), reef[1] + 2.0 * a.sin(), to[2]];
+            assert!(self.go(w, p, 6.0, |_, _| {}), "around the REEF");
+        }
+    }
+    fn elevator(&self, w: &mut World, h: f64) { w.cmd.targets.insert(self.elev, h); }
+    fn wait(&self, w: &mut World, limit: f64, mut done: impl FnMut(&World) -> bool) -> bool {
+        let t0 = w.time;
+        while w.time - t0 < limit { if done(w) { return true; } w.step(); }
+        false
+    }
+}
+
+/// M4 gate: a Concept elevator robot runs CORAL STATION to L4 cycles under a scripted driver, and
+/// the score and the cycle log match a hand count (5 points per L4 CORAL in teleop).
+#[test]
+fn m4_gate_station_to_l4_cycles() {
+    let lib = Library::builtin();
+    let mut p = Project::new("cycles");
+    let mut el = Template::elevator_default();
+    el.mount.offset[0] = 0.2;
+    let e = templates::add(&mut p.robot, el).unwrap();
+    let mut claw = Template::claw_default();
+    claw.mount.on = Some(e);
+    let c = templates::add(&mut p.robot, claw).unwrap();
+    let r = &p.robot;
+    let elev = r.drives.iter().find(|d| matches!(d.target, DriveTarget::Joint { .. })).unwrap().id;
+    let claw_drive = r.drives.iter().find(|d| matches!(d.target, DriveTarget::Shaft { shaft } if r.shaft(shaft).is_some_and(|s| r.mechanism(c).unwrap().links.contains(&s.link)))).unwrap().id;
+    let top = r.joints.iter().filter_map(|j| j.range).map(|x| x[1]).fold(0.0, f64::max);
+    let half = r.frame.length / 2.0 + r.frame.bumper_thickness;
+    let g = sim::game::GamePack::builtin("reefscape-2025").unwrap();
+    let mut w = World::new(&p, &lib, Scene::field(&g)).unwrap();
+    w.cmd.field_relative = true;
+    let bot = Driver { elev, claw_drive, claw: c };
+    // how far ahead of the chassis the claw holds a piece (the robot starts facing +x)
+    let reef = g.statics.iter().find(|s| s.name == "Blue REEF base").unwrap().pos;
+    let station = g.feeders.iter().find(|f| f.name == "Blue CORAL STATION south").unwrap().clone();
+    let dir = { let n = station.dir[0].hypot(station.dir[1]); [station.dir[0] / n, station.dir[1] / n] };
+    // stand so the claw's zone is where the CORAL comes down, facing the station
+    let zone_ahead = w.pickup_zones()[0].1.pos[0] - w.chassis_pose().pos[0];
+    let stand_station = [station.pos[0] + dir[0] * (zone_ahead + 0.3), station.pos[1] + dir[1] * (zone_ahead + 0.3), (-dir[1]).atan2(-dir[0])];
+    let targets = ["Blue L4 6l", "Blue L4 6r", "Blue L4 1r", "Blue L4 1l"];
+    let mut scored_at = vec![];
+    for name in targets {
+        // to the station, the claw at the chute's height and running
+        bot.elevator(&mut w, 0.1);
+        w.cmd.run.insert(bot.claw_drive, 8.0);
+        bot.around(&mut w, reef, stand_station);
+        assert!(bot.go(&mut w, stand_station, 8.0, |_, _| {}), "reached the station for {name}");
+        let mut k = 0;
+        let got = bot.wait(&mut w, 4.0, |w| {
+            k += 1;
+            if std::env::var("GATE_TRACE").is_ok() && k % 25 == 0 {
+                let z = w.pickup_zones()[0].1.pos;
+                let near = w.piece_positions().into_iter().map(|p| p.0).filter(|p| p[2] > -1.0).min_by(|a, b| len(sub(*a, z)).total_cmp(&len(sub(*b, z))));
+                println!("t {:.2} chassis {:?} zone {:?} nearest piece {:?}", w.time, w.chassis_pose().pos.map(|x| (x * 100.0).round() / 100.0), z.map(|x| (x * 100.0).round() / 100.0), near.map(|p| p.map(|x| (x * 100.0).round() / 100.0)));
+            }
+            w.holders()[0].2
+        });
+        assert!(got, "took a CORAL from the station for {name} (t {:.1})", w.time);
+        w.cmd.run.remove(&bot.claw_drive);
+        // to the branch: bumper against the REEF, facing it, the claw raised on the way in
+        let seat = g.zones.iter().find(|z| z.name == name).unwrap().seat.clone().unwrap().pos;
+        let a = (seat[1] - reef[1]).atan2(seat[0] - reef[0]);
+        let a = (a / (std::f64::consts::PI / 3.0)).round() * std::f64::consts::PI / 3.0;
+        let n = [a.cos(), a.sin()];
+        let out = 0.1 + half + 0.03;
+        let stand = [seat[0] + n[0] * out, seat[1] + n[1] * out, (-n[1]).atan2(-n[0])];
+        bot.around(&mut w, reef, stand);
+        assert!(bot.go(&mut w, stand, 10.0, |w, d| if d < 2.0 { w.cmd.targets.insert(elev, top); }), "reached {name}");
+        bot.elevator(&mut w, top);
+        assert!(bot.wait(&mut w, 3.0, |w| w.snapshot().drives.iter().any(|d| d.id == elev && (d.position - top).abs() < 0.01)), "elevator up for {name}");
+        let before = w.matched.score;
+        let h = w.holders()[0].1;
+        w.cmd.release.push(bot.claw);
+        w.step();
+        w.cmd.release.clear();
+        println!("{name}: holder at {:?}, seat {:?}, {:.3} m apart, score {} -> {} at {:.1} s", h.map(|x| (x * 1000.0).round() / 1000.0), seat, len(sub(h, seat)), before, w.matched.score, w.time);
+        assert!(w.matched.score - before == 5.0, "{name} scored 5");
+        scored_at.push(w.time);
+        bot.elevator(&mut w, 0.1);
+    }
+    let log: Vec<_> = w.matched.log.iter().filter(|e| e.points > 0.0).collect();
+    assert_eq!(w.matched.score, 5.0 * targets.len() as f64, "score matches the hand count");
+    assert_eq!(log.len(), targets.len(), "one log line per CORAL");
+    for (e, name) in log.iter().zip(targets) { assert_eq!(e.what, format!("scored {name}")); }
+    let cycles: Vec<f64> = scored_at.windows(2).map(|x| x[1] - x[0]).collect();
+    println!("cycles {cycles:.1?} s");
+    assert!(cycles.iter().all(|c| *c > 3.0 && *c < 15.0), "plausible cycle times");
+    assert!(w.engine.finite());
+}
