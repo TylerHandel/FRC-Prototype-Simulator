@@ -185,6 +185,68 @@
    "bore": true
   },
   {
+   "name": "Blue branch 1l L2",
+   "shape": {
+    "cylinder": {
+     "radius": 0.0212,
+     "length": 0.3
+    }
+   },
+   "pos": [
+    -3.4429,
+    0.1643,
+    0.8596
+   ],
+   "euler_deg": [
+    0.0,
+    55.0,
+    0.0
+   ],
+   "color": "#9a6bd0",
+   "bore": true
+  },
+  {
+   "name": "Blue branch 1l L3",
+   "shape": {
+    "cylinder": {
+     "radius": 0.0212,
+     "length": 0.3
+    }
+   },
+   "pos": [
+    -3.4429,
+    0.1643,
+    1.2597
+   ],
+   "euler_deg": [
+    0.0,
+    55.0,
+    0.0
+   ],
+   "color": "#9a6bd0",
+   "bore": true
+  },
+  {
+   "name": "Blue branch 1l L4 stop",
+   "shape": {
+    "cylinder": {
+     "radius": 0.0591,
+     "length": 0.02
+    }
+   },
+   "pos": [
+    -3.5529,
+    0.1643,
+    1.668
+   ],
+   "euler_deg": [
+    0,
+    0,
+    0
+   ],
+   "color": "#9a6bd0"
+  },
+  {
    "name": "Blue branch 1r",
    "shape": {
     "cylinder": {
@@ -204,6 +266,68 @@
    ],
    "color": "#9a6bd0",
    "bore": true
+  },
+  {
+   "name": "Blue branch 1r L2",
+   "shape": {
+    "cylinder": {
+     "radius": 0.0212,
+     "length": 0.3
+    }
+   },
+   "pos": [
+    -3.4429,
+    -0.1643,
+    0.8596
+   ],
+   "euler_deg": [
+    0.0,
+    55.0,
+    0.0
+   ],
+   "color": "#9a6bd0",
+   "bore": true
+  },
+  {
+   "name": "Blue branch 1r L3",
+   "shape": {
+    "cylinder": {
+     "radius": 0.0212,
+     "length": 0.3
+    }
+   },
+   "pos": [
+    -3.4429,
+    -0.1643,
+    1.2597
+   ],
+   "euler_deg": [
+    0.0,
+    55.0,
+    0.0
+   ],
+   "color": "#9a6bd0",
+   "bore": true
+  },
+  {
+   "name": "Blue branch 1r L4 stop",
+   "shape": {
+    "cylinder": {
+     "radius": 0.0591,
+     "length": 0.02
+    }
+   },
+   "pos": [
+    -3.5529,
+    -0.1643,
+    1.668
+   ],
+   "euler_deg": [
+    0,
+    0,
+    0
+   ],
+   "color": "#9a6bd0"
   },
   {
    "name": "Blue REEF face 2",
@@ -250,6 +374,68 @@
    "bore": true
   },
   {
+   "name": "Blue branch 2l L2",
+   "shape": {
+    "cylinder": {
+     "radius": 0.0212,
+     "length": 0.3
+    }
+   },
+   "pos": [
+    -4.0062,
+    0.8112,
+    0.8596
+   ],
+   "euler_deg": [
+    0.0,
+    55.0,
+    60.0
+   ],
+   "color": "#9a6bd0",
+   "bore": true
+  },
+  {
+   "name": "Blue branch 2l L3",
+   "shape": {
+    "cylinder": {
+     "radius": 0.0212,
+     "length": 0.3
+    }
+   },
+   "pos": [
+    -4.0062,
+    0.8112,
+    1.2597
+   ],
+   "euler_deg": [
+    0.0,
+    55.0,
+    60.0
+   ],
+   "color": "#9a6bd0",
+   "bore": true
+  },
+  {
+   "name": "Blue branch 2l L4 stop",
+   "shape": {
+    "cylinder": {
+     "radius": 0.0591,
+     "length": 0.02
+    }
+   },
+   "pos": [
+    -4.0612,
+    0.716,
+    1.668
+   ],
+   "euler_deg": [
+    0,
+    0,
+    0
+   ],
+   "color": "#9a6bd0"
+  },
+  {
    "name": "Blue branch 2r",
    "shape": {
     "cylinder": {
@@ -269,6 +455,68 @@
    ],
    "color": "#9a6bd0",
    "bore": true
+  },
+  {
+   "name": "Blue branch 2r L2",
+   "shape": {
+    "cylinder": {
+     "radius": 0.0212,
+     "length": 0.3
+    }
+   },
+   "pos": [
+    -3.7215,
+    0.6469,
+    0.8596
+   ],
+   "euler_deg": [
+    0.0,
+    55.0,
+    60.0
+   ],
+   "color": "#9a6bd0",
+   "bore": true
+  },
+  {
+   "name": "Blue branch 2r L3",
+   "shape": {
+    "cylinder": {
+     "radius": 0.0212,
+     "length": 0.3
+    }
+   },
+   "pos": [
+    -3.7215,
+    0.6469,
+    1.2597
+   ],
+   "euler_deg": [
+    0.0,
+    55.0,
+    60.0
+   ],
+   "color": "#9a6bd0",
+   "bore": true
+  },
+  {
+   "name": "Blue branch 2r L4 stop",
+   "shape": {
+    "cylinder": {
+     "radius": 0.0591,
+     "length": 0.02
+    }
+   },
+   "pos": [
+    -3.7765,
+    0.5516,
+    1.668
+   ],
+   "euler_deg": [
+    0,
+    0,
+    0
+   ],
+   "color": "#9a6bd0"
   },
   {
    "name": "Blue REEF face 3",
@@ -315,6 +563,68 @@
    "bore": true
   },
   {
+   "name": "Blue branch 3l L2",
+   "shape": {
+    "cylinder": {
+     "radius": 0.0212,
+     "length": 0.3
+    }
+   },
+   "pos": [
+    -4.848,
+    0.6469,
+    0.8596
+   ],
+   "euler_deg": [
+    0.0,
+    55.0,
+    120.0
+   ],
+   "color": "#9a6bd0",
+   "bore": true
+  },
+  {
+   "name": "Blue branch 3l L3",
+   "shape": {
+    "cylinder": {
+     "radius": 0.0212,
+     "length": 0.3
+    }
+   },
+   "pos": [
+    -4.848,
+    0.6469,
+    1.2597
+   ],
+   "euler_deg": [
+    0.0,
+    55.0,
+    120.0
+   ],
+   "color": "#9a6bd0",
+   "bore": true
+  },
+  {
+   "name": "Blue branch 3l L4 stop",
+   "shape": {
+    "cylinder": {
+     "radius": 0.0591,
+     "length": 0.02
+    }
+   },
+   "pos": [
+    -4.793,
+    0.5516,
+    1.668
+   ],
+   "euler_deg": [
+    0,
+    0,
+    0
+   ],
+   "color": "#9a6bd0"
+  },
+  {
    "name": "Blue branch 3r",
    "shape": {
     "cylinder": {
@@ -334,6 +644,68 @@
    ],
    "color": "#9a6bd0",
    "bore": true
+  },
+  {
+   "name": "Blue branch 3r L2",
+   "shape": {
+    "cylinder": {
+     "radius": 0.0212,
+     "length": 0.3
+    }
+   },
+   "pos": [
+    -4.5634,
+    0.8112,
+    0.8596
+   ],
+   "euler_deg": [
+    0.0,
+    55.0,
+    120.0
+   ],
+   "color": "#9a6bd0",
+   "bore": true
+  },
+  {
+   "name": "Blue branch 3r L3",
+   "shape": {
+    "cylinder": {
+     "radius": 0.0212,
+     "length": 0.3
+    }
+   },
+   "pos": [
+    -4.5634,
+    0.8112,
+    1.2597
+   ],
+   "euler_deg": [
+    0.0,
+    55.0,
+    120.0
+   ],
+   "color": "#9a6bd0",
+   "bore": true
+  },
+  {
+   "name": "Blue branch 3r L4 stop",
+   "shape": {
+    "cylinder": {
+     "radius": 0.0591,
+     "length": 0.02
+    }
+   },
+   "pos": [
+    -4.5084,
+    0.716,
+    1.668
+   ],
+   "euler_deg": [
+    0,
+    0,
+    0
+   ],
+   "color": "#9a6bd0"
   },
   {
    "name": "Blue REEF face 4",
@@ -380,6 +752,68 @@
    "bore": true
   },
   {
+   "name": "Blue branch 4l L2",
+   "shape": {
+    "cylinder": {
+     "radius": 0.0212,
+     "length": 0.3
+    }
+   },
+   "pos": [
+    -5.1266,
+    -0.1643,
+    0.8596
+   ],
+   "euler_deg": [
+    0.0,
+    55.0,
+    180.0
+   ],
+   "color": "#9a6bd0",
+   "bore": true
+  },
+  {
+   "name": "Blue branch 4l L3",
+   "shape": {
+    "cylinder": {
+     "radius": 0.0212,
+     "length": 0.3
+    }
+   },
+   "pos": [
+    -5.1266,
+    -0.1643,
+    1.2597
+   ],
+   "euler_deg": [
+    0.0,
+    55.0,
+    180.0
+   ],
+   "color": "#9a6bd0",
+   "bore": true
+  },
+  {
+   "name": "Blue branch 4l L4 stop",
+   "shape": {
+    "cylinder": {
+     "radius": 0.0591,
+     "length": 0.02
+    }
+   },
+   "pos": [
+    -5.0166,
+    -0.1643,
+    1.668
+   ],
+   "euler_deg": [
+    0,
+    0,
+    0
+   ],
+   "color": "#9a6bd0"
+  },
+  {
    "name": "Blue branch 4r",
    "shape": {
     "cylinder": {
@@ -399,6 +833,68 @@
    ],
    "color": "#9a6bd0",
    "bore": true
+  },
+  {
+   "name": "Blue branch 4r L2",
+   "shape": {
+    "cylinder": {
+     "radius": 0.0212,
+     "length": 0.3
+    }
+   },
+   "pos": [
+    -5.1266,
+    0.1643,
+    0.8596
+   ],
+   "euler_deg": [
+    0.0,
+    55.0,
+    180.0
+   ],
+   "color": "#9a6bd0",
+   "bore": true
+  },
+  {
+   "name": "Blue branch 4r L3",
+   "shape": {
+    "cylinder": {
+     "radius": 0.0212,
+     "length": 0.3
+    }
+   },
+   "pos": [
+    -5.1266,
+    0.1643,
+    1.2597
+   ],
+   "euler_deg": [
+    0.0,
+    55.0,
+    180.0
+   ],
+   "color": "#9a6bd0",
+   "bore": true
+  },
+  {
+   "name": "Blue branch 4r L4 stop",
+   "shape": {
+    "cylinder": {
+     "radius": 0.0591,
+     "length": 0.02
+    }
+   },
+   "pos": [
+    -5.0166,
+    0.1643,
+    1.668
+   ],
+   "euler_deg": [
+    0,
+    0,
+    0
+   ],
+   "color": "#9a6bd0"
   },
   {
    "name": "Blue REEF face 5",
@@ -445,6 +941,68 @@
    "bore": true
   },
   {
+   "name": "Blue branch 5l L2",
+   "shape": {
+    "cylinder": {
+     "radius": 0.0212,
+     "length": 0.3
+    }
+   },
+   "pos": [
+    -4.5634,
+    -0.8112,
+    0.8596
+   ],
+   "euler_deg": [
+    0.0,
+    55.0,
+    -120.0
+   ],
+   "color": "#9a6bd0",
+   "bore": true
+  },
+  {
+   "name": "Blue branch 5l L3",
+   "shape": {
+    "cylinder": {
+     "radius": 0.0212,
+     "length": 0.3
+    }
+   },
+   "pos": [
+    -4.5634,
+    -0.8112,
+    1.2597
+   ],
+   "euler_deg": [
+    0.0,
+    55.0,
+    -120.0
+   ],
+   "color": "#9a6bd0",
+   "bore": true
+  },
+  {
+   "name": "Blue branch 5l L4 stop",
+   "shape": {
+    "cylinder": {
+     "radius": 0.0591,
+     "length": 0.02
+    }
+   },
+   "pos": [
+    -4.5084,
+    -0.716,
+    1.668
+   ],
+   "euler_deg": [
+    0,
+    0,
+    0
+   ],
+   "color": "#9a6bd0"
+  },
+  {
    "name": "Blue branch 5r",
    "shape": {
     "cylinder": {
@@ -464,6 +1022,68 @@
    ],
    "color": "#9a6bd0",
    "bore": true
+  },
+  {
+   "name": "Blue branch 5r L2",
+   "shape": {
+    "cylinder": {
+     "radius": 0.0212,
+     "length": 0.3
+    }
+   },
+   "pos": [
+    -4.848,
+    -0.6469,
+    0.8596
+   ],
+   "euler_deg": [
+    0.0,
+    55.0,
+    -120.0
+   ],
+   "color": "#9a6bd0",
+   "bore": true
+  },
+  {
+   "name": "Blue branch 5r L3",
+   "shape": {
+    "cylinder": {
+     "radius": 0.0212,
+     "length": 0.3
+    }
+   },
+   "pos": [
+    -4.848,
+    -0.6469,
+    1.2597
+   ],
+   "euler_deg": [
+    0.0,
+    55.0,
+    -120.0
+   ],
+   "color": "#9a6bd0",
+   "bore": true
+  },
+  {
+   "name": "Blue branch 5r L4 stop",
+   "shape": {
+    "cylinder": {
+     "radius": 0.0591,
+     "length": 0.02
+    }
+   },
+   "pos": [
+    -4.793,
+    -0.5516,
+    1.668
+   ],
+   "euler_deg": [
+    0,
+    0,
+    0
+   ],
+   "color": "#9a6bd0"
   },
   {
    "name": "Blue REEF face 6",
@@ -510,6 +1130,68 @@
    "bore": true
   },
   {
+   "name": "Blue branch 6l L2",
+   "shape": {
+    "cylinder": {
+     "radius": 0.0212,
+     "length": 0.3
+    }
+   },
+   "pos": [
+    -3.7215,
+    -0.6469,
+    0.8596
+   ],
+   "euler_deg": [
+    0.0,
+    55.0,
+    -60.0
+   ],
+   "color": "#9a6bd0",
+   "bore": true
+  },
+  {
+   "name": "Blue branch 6l L3",
+   "shape": {
+    "cylinder": {
+     "radius": 0.0212,
+     "length": 0.3
+    }
+   },
+   "pos": [
+    -3.7215,
+    -0.6469,
+    1.2597
+   ],
+   "euler_deg": [
+    0.0,
+    55.0,
+    -60.0
+   ],
+   "color": "#9a6bd0",
+   "bore": true
+  },
+  {
+   "name": "Blue branch 6l L4 stop",
+   "shape": {
+    "cylinder": {
+     "radius": 0.0591,
+     "length": 0.02
+    }
+   },
+   "pos": [
+    -3.7765,
+    -0.5516,
+    1.668
+   ],
+   "euler_deg": [
+    0,
+    0,
+    0
+   ],
+   "color": "#9a6bd0"
+  },
+  {
    "name": "Blue branch 6r",
    "shape": {
     "cylinder": {
@@ -529,6 +1211,68 @@
    ],
    "color": "#9a6bd0",
    "bore": true
+  },
+  {
+   "name": "Blue branch 6r L2",
+   "shape": {
+    "cylinder": {
+     "radius": 0.0212,
+     "length": 0.3
+    }
+   },
+   "pos": [
+    -4.0062,
+    -0.8112,
+    0.8596
+   ],
+   "euler_deg": [
+    0.0,
+    55.0,
+    -60.0
+   ],
+   "color": "#9a6bd0",
+   "bore": true
+  },
+  {
+   "name": "Blue branch 6r L3",
+   "shape": {
+    "cylinder": {
+     "radius": 0.0212,
+     "length": 0.3
+    }
+   },
+   "pos": [
+    -4.0062,
+    -0.8112,
+    1.2597
+   ],
+   "euler_deg": [
+    0.0,
+    55.0,
+    -60.0
+   ],
+   "color": "#9a6bd0",
+   "bore": true
+  },
+  {
+   "name": "Blue branch 6r L4 stop",
+   "shape": {
+    "cylinder": {
+     "radius": 0.0591,
+     "length": 0.02
+    }
+   },
+   "pos": [
+    -4.0612,
+    -0.716,
+    1.668
+   ],
+   "euler_deg": [
+    0,
+    0,
+    0
+   ],
+   "color": "#9a6bd0"
   },
   {
    "name": "Blue CORAL STATION north",
@@ -684,6 +1428,68 @@
    "bore": true
   },
   {
+   "name": "Red branch 1l L2",
+   "shape": {
+    "cylinder": {
+     "radius": 0.0212,
+     "length": 0.3
+    }
+   },
+   "pos": [
+    5.1266,
+    0.1643,
+    0.8596
+   ],
+   "euler_deg": [
+    0.0,
+    55.0,
+    0.0
+   ],
+   "color": "#9a6bd0",
+   "bore": true
+  },
+  {
+   "name": "Red branch 1l L3",
+   "shape": {
+    "cylinder": {
+     "radius": 0.0212,
+     "length": 0.3
+    }
+   },
+   "pos": [
+    5.1266,
+    0.1643,
+    1.2597
+   ],
+   "euler_deg": [
+    0.0,
+    55.0,
+    0.0
+   ],
+   "color": "#9a6bd0",
+   "bore": true
+  },
+  {
+   "name": "Red branch 1l L4 stop",
+   "shape": {
+    "cylinder": {
+     "radius": 0.0591,
+     "length": 0.02
+    }
+   },
+   "pos": [
+    5.0166,
+    0.1643,
+    1.668
+   ],
+   "euler_deg": [
+    0,
+    0,
+    0
+   ],
+   "color": "#9a6bd0"
+  },
+  {
    "name": "Red branch 1r",
    "shape": {
     "cylinder": {
@@ -703,6 +1509,68 @@
    ],
    "color": "#9a6bd0",
    "bore": true
+  },
+  {
+   "name": "Red branch 1r L2",
+   "shape": {
+    "cylinder": {
+     "radius": 0.0212,
+     "length": 0.3
+    }
+   },
+   "pos": [
+    5.1266,
+    -0.1643,
+    0.8596
+   ],
+   "euler_deg": [
+    0.0,
+    55.0,
+    0.0
+   ],
+   "color": "#9a6bd0",
+   "bore": true
+  },
+  {
+   "name": "Red branch 1r L3",
+   "shape": {
+    "cylinder": {
+     "radius": 0.0212,
+     "length": 0.3
+    }
+   },
+   "pos": [
+    5.1266,
+    -0.1643,
+    1.2597
+   ],
+   "euler_deg": [
+    0.0,
+    55.0,
+    0.0
+   ],
+   "color": "#9a6bd0",
+   "bore": true
+  },
+  {
+   "name": "Red branch 1r L4 stop",
+   "shape": {
+    "cylinder": {
+     "radius": 0.0591,
+     "length": 0.02
+    }
+   },
+   "pos": [
+    5.0166,
+    -0.1643,
+    1.668
+   ],
+   "euler_deg": [
+    0,
+    0,
+    0
+   ],
+   "color": "#9a6bd0"
   },
   {
    "name": "Red REEF face 2",
@@ -749,6 +1617,68 @@
    "bore": true
   },
   {
+   "name": "Red branch 2l L2",
+   "shape": {
+    "cylinder": {
+     "radius": 0.0212,
+     "length": 0.3
+    }
+   },
+   "pos": [
+    4.5634,
+    0.8112,
+    0.8596
+   ],
+   "euler_deg": [
+    0.0,
+    55.0,
+    60.0
+   ],
+   "color": "#9a6bd0",
+   "bore": true
+  },
+  {
+   "name": "Red branch 2l L3",
+   "shape": {
+    "cylinder": {
+     "radius": 0.0212,
+     "length": 0.3
+    }
+   },
+   "pos": [
+    4.5634,
+    0.8112,
+    1.2597
+   ],
+   "euler_deg": [
+    0.0,
+    55.0,
+    60.0
+   ],
+   "color": "#9a6bd0",
+   "bore": true
+  },
+  {
+   "name": "Red branch 2l L4 stop",
+   "shape": {
+    "cylinder": {
+     "radius": 0.0591,
+     "length": 0.02
+    }
+   },
+   "pos": [
+    4.5084,
+    0.716,
+    1.668
+   ],
+   "euler_deg": [
+    0,
+    0,
+    0
+   ],
+   "color": "#9a6bd0"
+  },
+  {
    "name": "Red branch 2r",
    "shape": {
     "cylinder": {
@@ -768,6 +1698,68 @@
    ],
    "color": "#9a6bd0",
    "bore": true
+  },
+  {
+   "name": "Red branch 2r L2",
+   "shape": {
+    "cylinder": {
+     "radius": 0.0212,
+     "length": 0.3
+    }
+   },
+   "pos": [
+    4.848,
+    0.6469,
+    0.8596
+   ],
+   "euler_deg": [
+    0.0,
+    55.0,
+    60.0
+   ],
+   "color": "#9a6bd0",
+   "bore": true
+  },
+  {
+   "name": "Red branch 2r L3",
+   "shape": {
+    "cylinder": {
+     "radius": 0.0212,
+     "length": 0.3
+    }
+   },
+   "pos": [
+    4.848,
+    0.6469,
+    1.2597
+   ],
+   "euler_deg": [
+    0.0,
+    55.0,
+    60.0
+   ],
+   "color": "#9a6bd0",
+   "bore": true
+  },
+  {
+   "name": "Red branch 2r L4 stop",
+   "shape": {
+    "cylinder": {
+     "radius": 0.0591,
+     "length": 0.02
+    }
+   },
+   "pos": [
+    4.793,
+    0.5516,
+    1.668
+   ],
+   "euler_deg": [
+    0,
+    0,
+    0
+   ],
+   "color": "#9a6bd0"
   },
   {
    "name": "Red REEF face 3",
@@ -814,6 +1806,68 @@
    "bore": true
   },
   {
+   "name": "Red branch 3l L2",
+   "shape": {
+    "cylinder": {
+     "radius": 0.0212,
+     "length": 0.3
+    }
+   },
+   "pos": [
+    3.7215,
+    0.6469,
+    0.8596
+   ],
+   "euler_deg": [
+    0.0,
+    55.0,
+    120.0
+   ],
+   "color": "#9a6bd0",
+   "bore": true
+  },
+  {
+   "name": "Red branch 3l L3",
+   "shape": {
+    "cylinder": {
+     "radius": 0.0212,
+     "length": 0.3
+    }
+   },
+   "pos": [
+    3.7215,
+    0.6469,
+    1.2597
+   ],
+   "euler_deg": [
+    0.0,
+    55.0,
+    120.0
+   ],
+   "color": "#9a6bd0",
+   "bore": true
+  },
+  {
+   "name": "Red branch 3l L4 stop",
+   "shape": {
+    "cylinder": {
+     "radius": 0.0591,
+     "length": 0.02
+    }
+   },
+   "pos": [
+    3.7765,
+    0.5516,
+    1.668
+   ],
+   "euler_deg": [
+    0,
+    0,
+    0
+   ],
+   "color": "#9a6bd0"
+  },
+  {
    "name": "Red branch 3r",
    "shape": {
     "cylinder": {
@@ -833,6 +1887,68 @@
    ],
    "color": "#9a6bd0",
    "bore": true
+  },
+  {
+   "name": "Red branch 3r L2",
+   "shape": {
+    "cylinder": {
+     "radius": 0.0212,
+     "length": 0.3
+    }
+   },
+   "pos": [
+    4.0062,
+    0.8112,
+    0.8596
+   ],
+   "euler_deg": [
+    0.0,
+    55.0,
+    120.0
+   ],
+   "color": "#9a6bd0",
+   "bore": true
+  },
+  {
+   "name": "Red branch 3r L3",
+   "shape": {
+    "cylinder": {
+     "radius": 0.0212,
+     "length": 0.3
+    }
+   },
+   "pos": [
+    4.0062,
+    0.8112,
+    1.2597
+   ],
+   "euler_deg": [
+    0.0,
+    55.0,
+    120.0
+   ],
+   "color": "#9a6bd0",
+   "bore": true
+  },
+  {
+   "name": "Red branch 3r L4 stop",
+   "shape": {
+    "cylinder": {
+     "radius": 0.0591,
+     "length": 0.02
+    }
+   },
+   "pos": [
+    4.0612,
+    0.716,
+    1.668
+   ],
+   "euler_deg": [
+    0,
+    0,
+    0
+   ],
+   "color": "#9a6bd0"
   },
   {
    "name": "Red REEF face 4",
@@ -879,6 +1995,68 @@
    "bore": true
   },
   {
+   "name": "Red branch 4l L2",
+   "shape": {
+    "cylinder": {
+     "radius": 0.0212,
+     "length": 0.3
+    }
+   },
+   "pos": [
+    3.4429,
+    -0.1643,
+    0.8596
+   ],
+   "euler_deg": [
+    0.0,
+    55.0,
+    180.0
+   ],
+   "color": "#9a6bd0",
+   "bore": true
+  },
+  {
+   "name": "Red branch 4l L3",
+   "shape": {
+    "cylinder": {
+     "radius": 0.0212,
+     "length": 0.3
+    }
+   },
+   "pos": [
+    3.4429,
+    -0.1643,
+    1.2597
+   ],
+   "euler_deg": [
+    0.0,
+    55.0,
+    180.0
+   ],
+   "color": "#9a6bd0",
+   "bore": true
+  },
+  {
+   "name": "Red branch 4l L4 stop",
+   "shape": {
+    "cylinder": {
+     "radius": 0.0591,
+     "length": 0.02
+    }
+   },
+   "pos": [
+    3.5529,
+    -0.1643,
+    1.668
+   ],
+   "euler_deg": [
+    0,
+    0,
+    0
+   ],
+   "color": "#9a6bd0"
+  },
+  {
    "name": "Red branch 4r",
    "shape": {
     "cylinder": {
@@ -898,6 +2076,68 @@
    ],
    "color": "#9a6bd0",
    "bore": true
+  },
+  {
+   "name": "Red branch 4r L2",
+   "shape": {
+    "cylinder": {
+     "radius": 0.0212,
+     "length": 0.3
+    }
+   },
+   "pos": [
+    3.4429,
+    0.1643,
+    0.8596
+   ],
+   "euler_deg": [
+    0.0,
+    55.0,
+    180.0
+   ],
+   "color": "#9a6bd0",
+   "bore": true
+  },
+  {
+   "name": "Red branch 4r L3",
+   "shape": {
+    "cylinder": {
+     "radius": 0.0212,
+     "length": 0.3
+    }
+   },
+   "pos": [
+    3.4429,
+    0.1643,
+    1.2597
+   ],
+   "euler_deg": [
+    0.0,
+    55.0,
+    180.0
+   ],
+   "color": "#9a6bd0",
+   "bore": true
+  },
+  {
+   "name": "Red branch 4r L4 stop",
+   "shape": {
+    "cylinder": {
+     "radius": 0.0591,
+     "length": 0.02
+    }
+   },
+   "pos": [
+    3.5529,
+    0.1643,
+    1.668
+   ],
+   "euler_deg": [
+    0,
+    0,
+    0
+   ],
+   "color": "#9a6bd0"
   },
   {
    "name": "Red REEF face 5",
@@ -944,6 +2184,68 @@
    "bore": true
   },
   {
+   "name": "Red branch 5l L2",
+   "shape": {
+    "cylinder": {
+     "radius": 0.0212,
+     "length": 0.3
+    }
+   },
+   "pos": [
+    4.0062,
+    -0.8112,
+    0.8596
+   ],
+   "euler_deg": [
+    0.0,
+    55.0,
+    -120.0
+   ],
+   "color": "#9a6bd0",
+   "bore": true
+  },
+  {
+   "name": "Red branch 5l L3",
+   "shape": {
+    "cylinder": {
+     "radius": 0.0212,
+     "length": 0.3
+    }
+   },
+   "pos": [
+    4.0062,
+    -0.8112,
+    1.2597
+   ],
+   "euler_deg": [
+    0.0,
+    55.0,
+    -120.0
+   ],
+   "color": "#9a6bd0",
+   "bore": true
+  },
+  {
+   "name": "Red branch 5l L4 stop",
+   "shape": {
+    "cylinder": {
+     "radius": 0.0591,
+     "length": 0.02
+    }
+   },
+   "pos": [
+    4.0612,
+    -0.716,
+    1.668
+   ],
+   "euler_deg": [
+    0,
+    0,
+    0
+   ],
+   "color": "#9a6bd0"
+  },
+  {
    "name": "Red branch 5r",
    "shape": {
     "cylinder": {
@@ -963,6 +2265,68 @@
    ],
    "color": "#9a6bd0",
    "bore": true
+  },
+  {
+   "name": "Red branch 5r L2",
+   "shape": {
+    "cylinder": {
+     "radius": 0.0212,
+     "length": 0.3
+    }
+   },
+   "pos": [
+    3.7215,
+    -0.6469,
+    0.8596
+   ],
+   "euler_deg": [
+    0.0,
+    55.0,
+    -120.0
+   ],
+   "color": "#9a6bd0",
+   "bore": true
+  },
+  {
+   "name": "Red branch 5r L3",
+   "shape": {
+    "cylinder": {
+     "radius": 0.0212,
+     "length": 0.3
+    }
+   },
+   "pos": [
+    3.7215,
+    -0.6469,
+    1.2597
+   ],
+   "euler_deg": [
+    0.0,
+    55.0,
+    -120.0
+   ],
+   "color": "#9a6bd0",
+   "bore": true
+  },
+  {
+   "name": "Red branch 5r L4 stop",
+   "shape": {
+    "cylinder": {
+     "radius": 0.0591,
+     "length": 0.02
+    }
+   },
+   "pos": [
+    3.7765,
+    -0.5516,
+    1.668
+   ],
+   "euler_deg": [
+    0,
+    0,
+    0
+   ],
+   "color": "#9a6bd0"
   },
   {
    "name": "Red REEF face 6",
@@ -1009,6 +2373,68 @@
    "bore": true
   },
   {
+   "name": "Red branch 6l L2",
+   "shape": {
+    "cylinder": {
+     "radius": 0.0212,
+     "length": 0.3
+    }
+   },
+   "pos": [
+    4.848,
+    -0.6469,
+    0.8596
+   ],
+   "euler_deg": [
+    0.0,
+    55.0,
+    -60.0
+   ],
+   "color": "#9a6bd0",
+   "bore": true
+  },
+  {
+   "name": "Red branch 6l L3",
+   "shape": {
+    "cylinder": {
+     "radius": 0.0212,
+     "length": 0.3
+    }
+   },
+   "pos": [
+    4.848,
+    -0.6469,
+    1.2597
+   ],
+   "euler_deg": [
+    0.0,
+    55.0,
+    -60.0
+   ],
+   "color": "#9a6bd0",
+   "bore": true
+  },
+  {
+   "name": "Red branch 6l L4 stop",
+   "shape": {
+    "cylinder": {
+     "radius": 0.0591,
+     "length": 0.02
+    }
+   },
+   "pos": [
+    4.793,
+    -0.5516,
+    1.668
+   ],
+   "euler_deg": [
+    0,
+    0,
+    0
+   ],
+   "color": "#9a6bd0"
+  },
+  {
    "name": "Red branch 6r",
    "shape": {
     "cylinder": {
@@ -1028,6 +2454,68 @@
    ],
    "color": "#9a6bd0",
    "bore": true
+  },
+  {
+   "name": "Red branch 6r L2",
+   "shape": {
+    "cylinder": {
+     "radius": 0.0212,
+     "length": 0.3
+    }
+   },
+   "pos": [
+    4.5634,
+    -0.8112,
+    0.8596
+   ],
+   "euler_deg": [
+    0.0,
+    55.0,
+    -60.0
+   ],
+   "color": "#9a6bd0",
+   "bore": true
+  },
+  {
+   "name": "Red branch 6r L3",
+   "shape": {
+    "cylinder": {
+     "radius": 0.0212,
+     "length": 0.3
+    }
+   },
+   "pos": [
+    4.5634,
+    -0.8112,
+    1.2597
+   ],
+   "euler_deg": [
+    0.0,
+    55.0,
+    -60.0
+   ],
+   "color": "#9a6bd0",
+   "bore": true
+  },
+  {
+   "name": "Red branch 6r L4 stop",
+   "shape": {
+    "cylinder": {
+     "radius": 0.0591,
+     "length": 0.02
+    }
+   },
+   "pos": [
+    4.5084,
+    -0.716,
+    1.668
+   ],
+   "euler_deg": [
+    0,
+    0,
+    0
+   ],
+   "color": "#9a6bd0"
   },
   {
    "name": "Red CORAL STATION north",

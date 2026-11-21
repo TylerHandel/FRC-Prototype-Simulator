@@ -247,7 +247,7 @@ impl Driver {
         for i in 1..=steps {
             let a = a0 + turn * i as f64 / (steps + 1) as f64;
             let p = [reef[0] + 2.0 * a.cos(), reef[1] + 2.0 * a.sin(), to[2]];
-            assert!(self.go(w, p, 6.0, |_, _| {}), "around the REEF");
+            assert!(self.go(w, p, 6.0, |_, _| {}), "around the REEF: stuck at {:?} going to {p:?}", w.chassis_pose().pos);
         }
     }
     fn elevator(&self, w: &mut World, h: f64) { w.cmd.targets.insert(self.elev, h); }
@@ -325,6 +325,8 @@ fn m4_gate_station_to_l4_cycles() {
         println!("{name}: holder at {:?}, seat {:?}, {:.3} m apart, score {} -> {} at {:.1} s", h.map(|x| (x * 1000.0).round() / 1000.0), seat, len(sub(h, seat)), before, w.matched.score, w.time);
         assert!(w.matched.score - before == 5.0, "{name} scored 5");
         scored_at.push(w.time);
+        // back off before lowering, or the claw comes down on the branches
+        assert!(bot.go(&mut w, [stand[0] + n[0] * 0.5, stand[1] + n[1] * 0.5, stand[2]], 4.0, |_, _| {}), "backed off {name}");
         bot.elevator(&mut w, 0.1);
     }
     let log: Vec<_> = w.matched.log.iter().filter(|e| e.points > 0.0).collect();
@@ -380,4 +382,30 @@ fn m5_hull_collides_where_the_cad_is() {
     let z = w.piece_positions()[0].0[2];
     println!("ball at {z:.3} m, plate top {:.3} + radius {r:.3}", c[2] + 0.01);
     assert!((z - (c[2] + 0.01 + r)).abs() < 0.03, "rests on the plate");
+}
+
+/// M5: CORAL is hollow. Dropped over an L4 branch's top it slides down to the bend and is
+/// scored there; dropped onto an L3 branch it slides on and is scored. No assist.
+#[test]
+fn m5_coral_scores_on_branches_by_itself() {
+    let lib = Library::builtin();
+    let p = Project::new("branches");
+    let g = sim::game::GamePack::builtin("reefscape-2025").unwrap();
+    let seat = |n: &str| g.zones.iter().find(|z| z.name == n).unwrap().seat.clone().unwrap();
+    let (l4, l3) = (seat("Blue L4 1l"), seat("Blue L3 1r"));
+    let mut scene = Scene::field(&g);
+    scene.game_pieces = false;
+    // upright, its bottom just above the post's top
+    scene.pieces.push(Spawn { piece: "coral-2025".into(), pos: [l4.pos[0], l4.pos[1], 1.85 + 0.16], quat: QI, lin: [0.0; 3], ang: [0.0; 3] });
+    // along the L3 branch, a little out from where it sits
+    let q = euler_to_quat(l3.euler_deg.map(f64::to_radians));
+    let out = qrot(q, [0.0, 0.0, 1.0]);
+    scene.pieces.push(Spawn { piece: "coral-2025".into(), pos: add(l3.pos, scale(out, 0.05)), quat: q, lin: [0.0; 3], ang: [0.0; 3] });
+    let mut w = World::new(&p, &lib, scene).unwrap();
+    while w.time < 3.0 { w.step(); }
+    for (i, (pos, _)) in w.piece_positions().iter().enumerate() { println!("piece {i} at {:?}", pos.map(|x| (x * 1000.0).round() / 1000.0)); }
+    println!("log {:?}", w.matched.log.iter().map(|e| (&e.what, e.points)).collect::<Vec<_>>());
+    assert!(w.matched.log.iter().any(|e| e.what == "scored Blue L4 1l"), "L4 by itself");
+    assert!(w.matched.log.iter().any(|e| e.what == "scored Blue L3 1r"), "L3 by itself");
+    assert_eq!(w.matched.score, 5.0 + 4.0);
 }

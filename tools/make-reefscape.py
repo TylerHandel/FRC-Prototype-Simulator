@@ -17,6 +17,8 @@ REEF_X = HX - 176.746 * IN
 APO = 32.75 * IN          # REEF base, centre to a flat face
 BASE_H = 18 * IN          # the trough's top
 POST_R = 0.835 * IN       # 1.66 in. pipe
+CORAL_HALF = 11.875 * IN / 2
+CORAL_IN_R = 4.026 * IN / 2
 LEVELS = [("L2", 31.875 * IN, 35.0, 4, 3), ("L3", 47.625 * IN, 35.0, 6, 4), ("L4", 72.0 * IN, 90.0, 7, 5)]
 
 statics, zones, pieces, feeders = [], [], [], []
@@ -61,6 +63,12 @@ for side, sx, alliance, col in ((-1, -REEF_X, "blue", "#3b6fc4"), (1, REEF_X, "r
                 out = 0.0 if lv == "L4" else 0.11
                 seat = [px + nx * out, py + ny * out, h + (0.0 if lv == "L4" else 0.05)]
                 e = [0.0, 0.0, 0.0] if lv == "L4" else tilt_euler(nx, ny, up)
+                if lv == "L4":
+                    # the bend below L4's straight top: a CORAL slid over the top stops here
+                    cyl(f"{A} branch {k + 1}{b[0]} L4 stop", [px, py, round(h - CORAL_HALF - 0.01, 4)], CORAL_IN_R + 0.008, 0.02, color="#9a6bd0")
+                else:
+                    # the angled branch a CORAL slides onto at L2 and L3
+                    cyl(f"{A} branch {k + 1}{b[0]} {lv}", seat, POST_R, 0.30, euler=e, color="#9a6bd0", bore=True)
                 zones.append(dict(name=f"{A} {lv} {k + 1}{b[0]}", alliance=alliance, piece="coral-2025",
                                   center=[round(s, 4) for s in seat], size=[0.35, 0.35, 0.35], auto_points=pa, teleop_points=pt, capacity=1,
                                   seat=dict(pos=[round(s, 4) for s in seat], euler_deg=e, tolerance=0.2)))

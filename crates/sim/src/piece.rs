@@ -4,6 +4,16 @@ use library::{PieceLaw, PieceShape, IN, LBF, PSI};
 use model::math::*;
 use model::V3;
 
+/// MuJoCo collision bits: what touches what
+pub const BIT_CARPET: u32 = 1;
+pub const BIT_ROBOT: u32 = 2;
+pub const BIT_PIECE: u32 = 4;
+pub const BIT_WHEEL: u32 = 8;
+pub const BIT_SOFT: u32 = 16;
+pub const BIT_FIELD: u32 = 32;
+/// a hollow piece's walls, which only the field sees (a branch goes up inside it)
+pub const BIT_HOLLOW: u32 = 64;
+
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum Shape {
     Sphere { r: f64 },
@@ -147,11 +157,27 @@ impl PieceKind {
     /// The MJCF for a free piece named `name` at a pose, colliding as `contype`/`conaffinity`.
     pub fn mjcf(&self, name: &str, pos: V3, quat: Quat, friction: f64) -> String {
         let fr = format!("friction=\"{friction} 0.005 0.0001\"");
-        let col = "contype=\"4\" conaffinity=\"7\"";
+        let col = format!("contype=\"{BIT_PIECE}\" conaffinity=\"{}\"", BIT_CARPET | BIT_ROBOT | BIT_PIECE | BIT_FIELD);
+        // a hollow tube: round outside for the robot, the carpet and other pieces; walls for the field
+        let solid = format!("contype=\"{BIT_PIECE}\" conaffinity=\"{}\"", BIT_CARPET | BIT_ROBOT | BIT_PIECE);
+        let walls = format!("contype=\"{BIT_HOLLOW}\" conaffinity=\"{BIT_FIELD}\"");
         let soft = match self.law { Law::Rigid => "", _ => " solref=\"0.02 0.5\"" };
         let geoms = match self.shape {
             Shape::Sphere { r } => format!("<geom type=\"sphere\" size=\"{r}\" mass=\"{}\" {fr} {col}{soft}/>", self.mass),
-            Shape::Tube { r, half, .. } | Shape::Cylinder { r, half } => format!("<geom type=\"cylinder\" size=\"{r} {half}\" mass=\"{}\" {fr} {col}{soft}/>", self.mass),
+            // a hollow tube is a ring of thin walls, so a REEF branch can go up inside it
+            Shape::Tube { r, r_in, half } => {
+                let n = 16;
+                let (mid, t) = ((r + r_in) / 2.0, (r - r_in).max(0.002));
+                let w = mid * (std::f64::consts::PI / n as f64).tan() * 1.05;
+                let ring: String = (0..n).map(|i| {
+                    let a = std::f64::consts::TAU * i as f64 / n as f64;
+                    let q = axis_angle([0.0, 0.0, 1.0], a);
+                    format!("<geom type=\"box\" size=\"{} {w} {half}\" pos=\"{} {} 0\" quat=\"{} {} {} {}\" mass=\"0\" {fr} {walls}{soft}/>",
+                        t / 2.0, mid * a.cos(), mid * a.sin(), q[0], q[1], q[2], q[3])
+                }).collect();
+                format!("<geom type=\"cylinder\" size=\"{r} {half}\" mass=\"0\" {fr} {solid}{soft}/>{ring}")
+            }
+            Shape::Cylinder { r, half } => format!("<geom type=\"cylinder\" size=\"{r} {half}\" mass=\"{}\" {fr} {col}{soft}/>", self.mass),
             Shape::Box { half } => format!("<geom type=\"box\" size=\"{} {} {}\" mass=\"{}\" {fr} {col}{soft}/>", half[0], half[1], half[2], self.mass),
         };
         // a hollow tube's mass sits in its wall: its inertia is a thin-walled tube's, not a rod's

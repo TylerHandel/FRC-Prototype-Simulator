@@ -57,13 +57,11 @@ impl Scene {
 pub struct Spawn { pub piece: String, pub pos: V3, pub quat: Quat, pub lin: V3, pub ang: V3 }
 
 /// What the driver and the operator are asking for.
-/// MuJoCo collision bits: what touches what
-pub const BIT_CARPET: u32 = 1;
-pub const BIT_ROBOT: u32 = 2;
-pub const BIT_PIECE: u32 = 4;
-pub const BIT_WHEEL: u32 = 8;
-pub const BIT_SOFT: u32 = 16;
-pub const BIT_FIELD: u32 = 32;
+pub use crate::piece::{BIT_CARPET, BIT_FIELD, BIT_HOLLOW, BIT_PIECE, BIT_ROBOT, BIT_SOFT, BIT_WHEEL};
+
+/// a piece this close to a seat, nearly still for this long, is scored where it lies
+const SETTLE_REACH: f64 = 0.12;
+const SETTLE_TIME: f64 = 0.3;
 
 #[derive(Debug, Clone, Default)]
 pub struct Commands {
@@ -181,6 +179,8 @@ pub struct World {
     contacts: Vec<SliceContact>,
     contact_rollers: Vec<Id>,
     robot_bodies: Vec<usize>,
+    /// how long each free piece has sat still by a seat
+    settle: HashMap<usize, f64>,
 }
 
 fn f(v: f64) -> String { let s = format!("{v:.6}"); let s = s.trim_end_matches('0').trim_end_matches('.').to_string(); if s == "-0" || s.is_empty() { "0".into() } else { s } }
@@ -268,7 +268,7 @@ impl World {
                     StaticShape::Box { size } => ("box", v3(scale(*size, 0.5))),
                     StaticShape::Cylinder { radius, length } => ("cylinder", format!("{} {}", f(*radius), f(length / 2.0))),
                 };
-                let _ = write!(x, "<geom name=\"s{i}\" type=\"{t}\" size=\"{size}\" pos=\"{}\" quat=\"{}\" friction=\"0.5 0.005 0.0001\" contype=\"{}\" conaffinity=\"0\" rgba=\"{}\"/>", v3(s.pos), q4(q), BIT_CARPET | BIT_FIELD, rgba(&s.color, 1.0));
+                let _ = write!(x, "<geom name=\"s{i}\" type=\"{t}\" size=\"{size}\" pos=\"{}\" quat=\"{}\" friction=\"0.5 0.005 0.0001\" contype=\"{}\" conaffinity=\"0\" rgba=\"{}\"/>", v3(s.pos), q4(q), BIT_FIELD, rgba(&s.color, 1.0));
             }
         }
 
@@ -333,9 +333,9 @@ impl World {
                 let hull = matches!(s.kind, ShapeKind::Hull { .. });
                 let (ct, ca, fr) = match (s.role, l.collision) {
                     (ShapeRole::Ghost, _) | (_, Collision::None) => (0, 0, 0.5),
-                    (ShapeRole::Bumper, _) => (BIT_ROBOT, BIT_CARPET | BIT_PIECE, 0.1),
+                    (ShapeRole::Bumper, _) => (BIT_ROBOT, BIT_CARPET | BIT_PIECE | BIT_FIELD, 0.1),
                     _ if hull => (BIT_ROBOT, BIT_PIECE | BIT_FIELD, 0.5),
-                    _ => (BIT_ROBOT, BIT_CARPET | BIT_PIECE, 0.5),
+                    _ => (BIT_ROBOT, BIT_CARPET | BIT_PIECE | BIT_FIELD, 0.5),
                 };
                 let color = s.color.clone().unwrap_or_else(|| l.color.clone());
                 let _ = write!(x, "<geom name=\"g{id}_{si}\" type=\"{t}\" {size} pos=\"{}\" quat=\"{}\" contype=\"{ct}\" conaffinity=\"{ca}\" friction=\"{fr} 0.005 0.0001\" rgba=\"{}\" mass=\"0\"/>",
@@ -345,8 +345,8 @@ impl World {
                 if let Some(dt) = &r.drivetrain {
                     let rad = library::Library::builtin().wheel(&dt.wheel).map_or(0.0508, |w| w.radius());
                     for (k, p) in dt.module_positions(&r.frame).iter().enumerate() {
-                        let _ = write!(x, "<geom name=\"wheel{k}\" type=\"sphere\" size=\"{}\" pos=\"{} {} {}\" contype=\"8\" conaffinity=\"1\" condim=\"1\" priority=\"2\" friction=\"0 0 0\" mass=\"0\" rgba=\"0.1 0.1 0.1 1\"/>",
-                            f(rad), f(p[0]), f(p[1]), f(rad));
+                        let _ = write!(x, "<geom name=\"wheel{k}\" type=\"sphere\" size=\"{}\" pos=\"{} {} {}\" contype=\"{}\" conaffinity=\"{}\" condim=\"1\" priority=\"2\" friction=\"0 0 0\" mass=\"0\" rgba=\"0.1 0.1 0.1 1\"/>",
+                            f(rad), f(p[0]), f(p[1]), f(rad), BIT_WHEEL, BIT_CARPET | BIT_FIELD);
                     }
                 }
             }
@@ -531,7 +531,7 @@ impl World {
             engine, lib: lib.clone(), project: project.clone(), scene, game, dt, time: 0.0, cmd, bus: Bus::new(r.electrical.clone()),
             warnings, matched: Match { filled: vec![0; n_zones], ..Default::default() }, mjcf,
             links, joints, drives, shafts, rollers, mechs, kinds, pieces, feeders, drive, root_body, root_joint,
-            bristles: Bristles::new(), contacts: vec![], contact_rollers: vec![], robot_bodies,
+            bristles: Bristles::new(), contacts: vec![], contact_rollers: vec![], robot_bodies, settle: HashMap::new(),
         })
     }
 
@@ -884,6 +884,27 @@ impl World {
                 }
             }
         }
+        // a piece that comes to rest on a branch (Full: nobody seats it) is scored where it lies
+        let mut still = vec![];
+        for pi in 0..self.pieces.len() {
+            if self.pieces[pi].at != PieceWhere::Free { continue; }
+            let (pos, quat) = self.engine.free_pose(self.pieces[pi].jnt);
+            let (lin, ang) = self.engine.velocity_at(self.pieces[pi].body, pos);
+            if len(lin) > 0.15 || len(ang) > 1.0 { continue; }
+            let kid = &self.kinds[self.pieces[pi].kind].id;
+            let near = g.zones.iter().enumerate().find(|(zi, z)| z.piece == *kid && self.matched.filled[*zi] < z.capacity
+                && z.seat.as_ref().is_some_and(|s| len(sub(s.pos, pos)) < SETTLE_REACH));
+            let Some((zi, _)) = near else { continue };
+            still.push(pi);
+            let t = self.settle.entry(pi).or_insert(0.0);
+            *t += dt;
+            if *t >= SETTLE_TIME {
+                self.pieces[pi].at = PieceWhere::Scored;
+                self.pieces[pi].shown = Pose::new(pos, quat);
+                self.score_zone(zi);
+            }
+        }
+        self.settle.retain(|k, _| still.contains(k));
         // feeders hand a piece to a robot standing by them
         if let Some(root) = self.root_joint {
             let (rp, _) = self.engine.free_pose(root);
