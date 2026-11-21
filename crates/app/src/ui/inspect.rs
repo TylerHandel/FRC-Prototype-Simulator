@@ -463,12 +463,18 @@ fn link(ui: &mut Ui, st: &mut AppState, id: Id) {
         st.doc.edit("~Link mass", |p| if let Some(l) = p.robot.link_mut(id) { l.mass = Some(mass); });
     }
     let mut col = l.collision;
-    row(ui, "Collision", "Box: one box round it. Simple: its own blocks. None: passes through.", |ui| {
+    row(ui, "Collision", "Box: one box round it. Simple: its 24 biggest parts (or its own blocks). Detailed: every part, thin ones as flat slabs. None: passes through.", |ui| {
         egui::ComboBox::from_id_salt("col").selected_text(format!("{col:?}")).show_ui(ui, |ui| {
             for c in [Collision::Box, Collision::Simple, Collision::Detailed, Collision::None] { ui.selectable_value(&mut col, c, format!("{c:?}")); }
         });
     });
-    if col != l.collision { st.doc.edit("Collision", |p| if let Some(l) = p.robot.link_mut(id) { l.collision = col; }); }
+    if col != l.collision {
+        let cad = if l.parts.is_empty() { None } else { super::rig::load_cadpack(st) };
+        st.doc.edit("Collision", |p| {
+            if let Some(l) = p.robot.link_mut(id) { l.collision = col; }
+            if let Some((cp, to)) = &cad { cad::propose::fit_collision(&mut p.robot, cp, to); }
+        });
+    }
     hint(ui, &format!("{} shapes, {} CAD parts", l.shapes.len(), l.parts.len()));
     if let Some(j) = st.project().robot.joint_of(id) {
         if ui.selectable_label(false, format!("Moves on: {}", j.name)).clicked() { st.sel = Selection::Joint(j.id); }

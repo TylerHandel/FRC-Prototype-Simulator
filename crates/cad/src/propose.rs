@@ -636,7 +636,6 @@ pub fn propose(cp: &Cadpack, to_robot: &Pose, lib: &Library, bom: &HashMap<Strin
 /// drivetrain. Keeps the frame's bumpers.
 pub fn apply(r: &mut Robot, cp: &Cadpack, to_robot: &Pose, prop: &Proposal, lib: &Library) {
     let placed = place(cp, to_robot);
-    let by_id: HashMap<&str, &Placed> = placed.iter().map(|p| (p.row.id.as_str(), p)).collect();
     r.parts = placed.iter().map(|p| Part { id: p.row.id.clone(), name: p.row.name.clone(), path: p.row.path.clone(), fingerprint: Fingerprint { volume: p.volume, com: p.com, bbox: p.bbox },
         material: prop.masses.get(&p.row.id).and_then(|m| m.0.clone()), mass: prop.masses.get(&p.row.id).map(|m| m.1), hardware: p.hardware }).collect();
     // start over from the chassis
@@ -645,7 +644,7 @@ pub fn apply(r: &mut Robot, cp: &Cadpack, to_robot: &Pose, prop: &Proposal, lib:
     r.joints.clear(); r.drives.clear(); r.shafts.clear(); r.rollers.clear(); r.mechanisms.clear(); r.controls = Controls::default(); r.sensors.clear();
     let mut ids = vec![CHASSIS];
     for (i, lp) in prop.links.iter().enumerate() {
-        let shapes = collision_boxes(&lp.parts, &by_id, &prop.masses);
+        let shapes = vec![];
         let mass: f64 = lp.parts.iter().filter_map(|p| prop.masses.get(p).map(|m| m.1)).sum();
         if i == 0 {
             let c = r.link_mut(CHASSIS).unwrap();
@@ -657,7 +656,7 @@ pub fn apply(r: &mut Robot, cp: &Cadpack, to_robot: &Pose, prop: &Proposal, lib:
         } else {
             let id = r.id();
             ids.push(id);
-            r.links.push(Link { id, name: lp.name.clone(), shapes, parts: lp.parts.clone(), mass: Some(mass.max(0.05)), color: palette(i), collision: Collision::Simple, material: None });
+            r.links.push(Link { id, name: lp.name.clone(), shapes, parts: lp.parts.clone(), mass: Some(mass.max(0.05)), color: palette(i), collision: Collision::Detailed, material: None });
         }
     }
     let motor_default = prop.motors.iter().map(|m| m.1.clone()).fold(HashMap::new(), |mut h: HashMap<String, usize>, m| { *h.entry(m).or_default() += 1; h })
@@ -733,22 +732,55 @@ pub fn apply(r: &mut Robot, cp: &Cadpack, to_robot: &Pose, prop: &Proposal, lib:
         r.controls.presets.push(Preset { id: pid2, name: format!("{} home", j.name), targets: vec![PresetTarget { drive: d, value: 0.0 }] });
     }
     templates::assign_preset_buttons(r);
+    fit_collision(r, cp, to_robot);
 }
+
+/// Collision shapes for every link made of CAD parts, from the parts' meshes (M5): `Box` one
+/// box round the link, `Simple` the 24 biggest parts, `Detailed` every part (up to 200 shapes),
+/// thin parts split into flat slabs. Rollers' own parts are left out (the roller contact squeezes
+/// pieces against them), and so are fasteners and reference bodies. Bumpers and hand-made blocks
+/// stay.
+pub fn fit_collision(r: &mut Robot, cp: &Cadpack, to_robot: &Pose) {
+    let placed = place(cp, to_robot);
+    let by_id: HashMap<&str, &Placed> = placed.iter().map(|p| (p.row.id.as_str(), p)).collect();
+    let rollers: std::collections::HashSet<String> = r.rollers.iter().filter_map(|x| x.part.clone()).collect();
+    let weightless: std::collections::HashSet<String> = r.parts.iter().filter(|p| p.mass == Some(0.0)).map(|p| p.id.clone()).collect();
+    for l in &mut r.links {
+        if l.parts.is_empty() { continue; }
+        let mut ps: Vec<&Placed> = l.parts.iter().filter_map(|p| by_id.get(p.as_str()).copied())
+            .filter(|p| !p.hardware && p.volume > 0.0 && !rollers.contains(&p.row.id) && !weightless.contains(&p.row.id)).collect();
+        ps.sort_by(|a, b| b.volume.total_cmp(&a.volume));
+        let mut sets: Vec<(String, Vec<V3>)> = vec![];
+        match l.collision {
+            Collision::None => {}
+            Collision::Box => {
+                let pts: Vec<V3> = ps.iter().flat_map(|p| (0..8).map(move |i| [p.bbox[i & 1][0], p.bbox[(i >> 1) & 1][1], p.bbox[(i >> 2) & 1][2]])).collect();
+                if !pts.is_empty() { sets.push((l.name.clone(), crate::hull::support(&pts))); }
+            }
+            level => {
+                let (parts, cap) = if level == Collision::Simple { (24, 64) } else { (usize::MAX, 200) };
+                for p in ps.iter().take(parts) {
+                    let Some(m) = cp.mesh(p.row.shape) else { continue };
+                    for h in crate::hull::part_hulls(&m, &p.pose, p.volume) { sets.push((p.row.name.clone(), h)); }
+                    if sets.len() >= cap { break; }
+                }
+            }
+        }
+        let keep: Vec<Shape> = l.shapes.iter().filter(|s| s.role == ShapeRole::Bumper || !matches!(s.kind, ShapeKind::Hull { .. }) && s.role != ShapeRole::Ghost).cloned().collect();
+        l.shapes = keep;
+        for (name, pts) in sets {
+            if pts.len() < 4 { continue; }
+            let c = { let mut lo = [f64::INFINITY; 3]; let mut hi = [f64::NEG_INFINITY; 3]; for q in &pts { for k in 0..3 { lo[k] = lo[k].min(q[k]); hi[k] = hi[k].max(q[k]); } } lerp(lo, hi, 0.5) };
+            let points = pts.iter().map(|q| { let d = sub(*q, c); [round4(d[0]), round4(d[1]), round4(d[2])] }).collect();
+            l.shapes.push(Shape { name, kind: ShapeKind::Hull { points }, pose: Pose::at(c), color: None, role: ShapeRole::Body });
+        }
+    }
+}
+
+fn round4(x: f64) -> f64 { (x * 1e4).round() / 1e4 }
 
 fn palette(i: usize) -> String { ["#9aa3ad", "#4f8fd6", "#e2a03f", "#3fae6a", "#d65a8a", "#9b6fd0", "#5aa7b3", "#c94f4f"][i % 8].into() }
 
-/// Collision for a link (D7 "Simple"): an oriented box for each of its biggest parts, at most 24.
-pub fn collision_boxes(parts: &[String], by_id: &HashMap<&str, &Placed>, masses: &HashMap<String, (Option<String>, f64)>) -> Vec<Shape> {
-    let mut ps: Vec<&&Placed> = parts.iter().filter_map(|p| by_id.get(p.as_str())).filter(|p| !p.hardware && p.volume > 0.0 && masses.get(&p.row.id).is_none_or(|m| m.1 > 0.0)).collect();
-    ps.sort_by(|a, b| b.volume.partial_cmp(&a.volume).unwrap());
-    ps.into_iter().take(24).filter_map(|p| {
-        // the part's own bounding box, turned with it
-        let lo = p.bbox[0]; let hi = p.bbox[1];
-        let size = sub(hi, lo);
-        if size.iter().any(|x| *x < 1e-4) { return None; }
-        Some(Shape { name: p.row.name.clone(), kind: ShapeKind::Box { size }, pose: Pose::at(lerp(lo, hi, 0.5)), color: None, role: ShapeRole::Ghost })
-    }).collect()
-}
 
 /// Re-import (D9): carries markup from the old robot onto a new cadpack. Parts are matched by id,
 /// then by fingerprint; returns the parts that couldn't be found.

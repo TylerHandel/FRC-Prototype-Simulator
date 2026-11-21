@@ -360,3 +360,24 @@ fn m1_gate_block_slips_at_atan_mu() {
     assert!(below.abs() < 0.002, "holds below atan(mu)");
     assert!(above > 0.05, "slides above atan(mu)");
 }
+
+/// M5: a CAD hull collides where the CAD put it. A plate off to one side, as a hull, catches a
+/// ball dropped on it; the ball rests on its top face.
+#[test]
+fn m5_hull_collides_where_the_cad_is() {
+    let lib = Library::builtin();
+    let mut p = Project::new("hull");
+    p.robot.drivetrain = None;
+    let c = [0.6, 0.2, 0.40];
+    let pts: Vec<V3> = (0..8).map(|i| [if i & 1 == 0 { -0.15 } else { 0.15 }, if i & 2 == 0 { -0.15 } else { 0.15 }, if i & 4 == 0 { -0.01 } else { 0.01 }]).collect();
+    p.robot.links[0].shapes.push(Shape { name: "plate".into(), kind: ShapeKind::Hull { points: pts }, pose: Pose::at(c), color: None, role: ShapeRole::Body });
+    let mut scene = Scene::bench();
+    let k = sim::piece::PieceKind::from_library(lib.piece("algae-2025").unwrap());
+    let sim::piece::Shape::Sphere { r } = k.shape else { panic!() };
+    scene.pieces.push(Spawn { piece: "algae-2025".into(), pos: [c[0] + 0.05, c[1] - 0.05, 0.8], quat: QI, lin: [0.0; 3], ang: [0.0; 3] });
+    let mut w = World::new(&p, &lib, scene).unwrap();
+    for _ in 0..3000 { w.step(); }
+    let z = w.piece_positions()[0].0[2];
+    println!("ball at {z:.3} m, plate top {:.3} + radius {r:.3}", c[2] + 0.01);
+    assert!((z - (c[2] + 0.01 + r)).abs() < 0.03, "rests on the plate");
+}

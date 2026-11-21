@@ -431,11 +431,13 @@ pub fn part(ui: &mut Ui, st: &mut AppState, id: &str) {
     if let Some(target) = to {
         let group: Vec<String> = if whole && p.path.len() > 2 { let pre = &p.path[..p.path.len() - 1]; r.parts.iter().filter(|x| x.path.starts_with(pre)).map(|x| x.id.clone()).collect() } else { vec![id.to_string()] };
         let name = p.path.get(p.path.len().saturating_sub(2)).cloned().unwrap_or_else(|| p.name.clone());
+        let cad = load_cadpack(st);
         st.doc.edit("Move parts", |pr| {
             let target = if target == 0 { let nid = pr.robot.id(); pr.robot.links.push(model::Link { id: nid, name, shapes: vec![], parts: vec![], mass: None, color: "#4f8fd6".into(), collision: model::Collision::Box, material: None }); nid } else { target };
             for l in &mut pr.robot.links { l.parts.retain(|x| !group.contains(x)); }
             if let Some(l) = pr.robot.link_mut(target) { l.parts.extend(group.iter().cloned()); }
             refit(&mut pr.robot);
+            if let Some((cp, to)) = &cad { cad::propose::fit_collision(&mut pr.robot, cp, to); }
         });
     }
     // round faces: a roller or a joint axis
@@ -488,20 +490,18 @@ pub fn part(ui: &mut Ui, st: &mut AppState, id: &str) {
     }
 }
 
-/// After parts move between links: masses and collision boxes again.
+/// After parts move between links: masses again (collision is refitted from the meshes).
 fn refit(r: &mut model::Robot) {
     let parts: HashMap<String, model::Part> = r.parts.iter().map(|p| (p.id.clone(), p.clone())).collect();
     for l in &mut r.links {
         if l.parts.is_empty() { continue; }
         let m: f64 = l.parts.iter().filter_map(|p| parts.get(p).and_then(|x| x.mass)).sum();
         l.mass = Some(m.max(0.05) + if l.id == model::CHASSIS { 6.0 } else { 0.0 });
-        let bumpers: Vec<model::Shape> = l.shapes.iter().filter(|s| s.role == model::ShapeRole::Bumper).cloned().collect();
-        let mut ps: Vec<&model::Part> = l.parts.iter().filter_map(|p| parts.get(p)).filter(|p| !p.hardware && p.fingerprint.volume > 0.0).collect();
-        ps.sort_by(|a, b| b.fingerprint.volume.partial_cmp(&a.fingerprint.volume).unwrap());
-        l.shapes = ps.into_iter().take(24).map(|p| {
-            let (lo, hi) = (p.fingerprint.bbox[0], p.fingerprint.bbox[1]);
-            model::Shape { name: p.name.clone(), kind: model::ShapeKind::Box { size: model::math::sub(hi, lo) }, pose: Pose::at(model::math::lerp(lo, hi, 0.5)), color: None, role: model::ShapeRole::Ghost }
-        }).collect();
-        l.shapes.extend(bumpers);
     }
+}
+
+/// The project's cadpack and its placement, for refitting collision after an edit.
+pub fn load_cadpack(st: &AppState) -> Option<(Cadpack, Pose)> {
+    let (c, d) = (st.project().robot.cad.as_ref()?, st.dir.as_ref()?);
+    Some((Cadpack::load(&d.join(&c.cadpack)).ok()?, c.to_robot))
 }

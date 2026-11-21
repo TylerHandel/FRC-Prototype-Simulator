@@ -331,14 +331,32 @@ pub enum ShapeKind {
     /// along the shape's z
     Cylinder { radius: f64, length: f64 },
     Sphere { radius: f64 },
+    /// the convex hull of these points (from CAD), centred on the shape's pose
+    Hull { points: Vec<V3> },
 }
 
 impl ShapeKind {
     pub fn volume(&self) -> f64 {
-        match *self {
+        match self {
             ShapeKind::Box { size } => size[0] * size[1] * size[2],
             ShapeKind::Cylinder { radius, length } => std::f64::consts::PI * radius * radius * length,
             ShapeKind::Sphere { radius } => 4.0 / 3.0 * std::f64::consts::PI * radius.powi(3),
+            // about half its box: a hull is rarely a full box
+            ShapeKind::Hull { .. } => { let e = self.extents(); 0.5 * e[0] * e[1] * e[2] }
+        }
+    }
+    /// the size of the box round it, in its own frame
+    pub fn extents(&self) -> V3 {
+        match self {
+            ShapeKind::Box { size } => *size,
+            ShapeKind::Cylinder { radius, length } => [2.0 * radius, 2.0 * radius, *length],
+            ShapeKind::Sphere { radius } => [2.0 * radius; 3],
+            ShapeKind::Hull { points } => {
+                let mut lo = [f64::INFINITY; 3];
+                let mut hi = [f64::NEG_INFINITY; 3];
+                for p in points { for k in 0..3 { lo[k] = lo[k].min(p[k]); hi[k] = hi[k].max(p[k]); } }
+                if points.is_empty() { [0.0; 3] } else { [hi[0] - lo[0], hi[1] - lo[1], hi[2] - lo[2]] }
+            }
         }
     }
 }

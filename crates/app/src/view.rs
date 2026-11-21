@@ -102,10 +102,11 @@ fn material(built: &mut Built, mats: &mut Assets<StandardMaterial>, color: &str,
 }
 
 fn shape_mesh(k: &ShapeKind) -> (Mesh, Quat) {
-    match *k {
-        ShapeKind::Box { size } => (Cuboid::new(size[0] as f32, size[1] as f32, size[2] as f32).into(), Quat::IDENTITY),
-        ShapeKind::Cylinder { radius, length } => (Cylinder::new(radius as f32, length as f32).into(), Quat::from_rotation_x(std::f32::consts::FRAC_PI_2)),
-        ShapeKind::Sphere { radius } => (Sphere::new(radius as f32).mesh().ico(3).unwrap(), Quat::IDENTITY),
+    match k {
+        ShapeKind::Cylinder { radius, length } => (Cylinder::new(*radius as f32, *length as f32).into(), Quat::from_rotation_x(std::f32::consts::FRAC_PI_2)),
+        ShapeKind::Sphere { radius } => (Sphere::new(*radius as f32).mesh().ico(3).unwrap(), Quat::IDENTITY),
+        // a box, or a CAD hull drawn as the box round it (the CAD itself is drawn over it)
+        k => { let size = k.extents(); (Cuboid::new(size[0] as f32, size[1] as f32, size[2] as f32).into(), Quat::IDENTITY) }
     }
 }
 

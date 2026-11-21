@@ -57,6 +57,14 @@ impl Scene {
 pub struct Spawn { pub piece: String, pub pos: V3, pub quat: Quat, pub lin: V3, pub ang: V3 }
 
 /// What the driver and the operator are asking for.
+/// MuJoCo collision bits: what touches what
+pub const BIT_CARPET: u32 = 1;
+pub const BIT_ROBOT: u32 = 2;
+pub const BIT_PIECE: u32 = 4;
+pub const BIT_WHEEL: u32 = 8;
+pub const BIT_SOFT: u32 = 16;
+pub const BIT_FIELD: u32 = 32;
+
 #[derive(Debug, Clone, Default)]
 pub struct Commands {
     /// x, y (m/s) and turn (rad/s); field-relative when `field_relative`
@@ -197,10 +205,11 @@ fn link_inertia(shapes: &[Shape], mass: f64, fallback_com: V3) -> (V3, [f64; 9])
     let mut it = [0.0; 9];
     for s in &solid {
         let m = mass * s.kind.volume() / vol;
-        let d = match s.kind {
-            ShapeKind::Box { size } => [m / 12.0 * (size[1].powi(2) + size[2].powi(2)), m / 12.0 * (size[0].powi(2) + size[2].powi(2)), m / 12.0 * (size[0].powi(2) + size[1].powi(2))],
+        let d = match &s.kind {
             ShapeKind::Cylinder { radius, length } => { let a = m / 12.0 * (3.0 * radius * radius + length * length); [a, a, m / 2.0 * radius * radius] }
             ShapeKind::Sphere { radius } => { let a = 0.4 * m * radius * radius; [a, a, a] }
+            // a box, or a hull taken as the box round it
+            k => { let size = k.extents(); [m / 12.0 * (size[1].powi(2) + size[2].powi(2)), m / 12.0 * (size[0].powi(2) + size[2].powi(2)), m / 12.0 * (size[0].powi(2) + size[1].powi(2))] }
         };
         let r = qmat(s.pose.quat);
         // R diag(d) R^T, then the parallel-axis term
@@ -237,9 +246,20 @@ impl World {
         let sleep = if scene.mode == Mode::Field { "<flag sleep=\"enable\"/>" } else { "" };
         let _ = write!(x, "<mujoco model=\"robot\"><compiler angle=\"radian\" inertiafromgeom=\"auto\"/>\
             <option timestep=\"{dt}\" integrator=\"implicitfast\" cone=\"elliptic\" impratio=\"10\" gravity=\"0 0 -{G}\">{sleep}</option>\
-            <size memory=\"256M\"/><visual><global offwidth=\"64\" offheight=\"64\"/></visual><worldbody>");
+            <size memory=\"256M\"/><visual><global offwidth=\"64\" offheight=\"64\"/></visual>");
+        // CAD hulls are meshes: MuJoCo takes the convex hull of each point set
+        let mut assets = String::new();
+        for l in &r.links {
+            for (si, s) in l.shapes.iter().enumerate() {
+                let ShapeKind::Hull { points } = &s.kind else { continue };
+                let v: Vec<String> = points.iter().map(|p| v3(*p)).collect();
+                let _ = write!(assets, "<mesh name=\"h{}_{si}\" vertex=\"{}\"/>", l.id, v.join(" "));
+            }
+        }
+        if !assets.is_empty() { let _ = write!(x, "<asset>{assets}</asset>"); }
+        x.push_str("<worldbody>");
         let carpet_mu = game.as_ref().map_or(1.0, |g| g.field.carpet_friction);
-        let _ = write!(x, "<geom name=\"carpet\" type=\"plane\" size=\"40 40 0.1\" friction=\"{carpet_mu} 0.005 0.0001\" contype=\"1\" conaffinity=\"0\" rgba=\"0.2 0.2 0.22 1\"/>");
+        let _ = write!(x, "<geom name=\"carpet\" type=\"plane\" size=\"40 40 0.1\" friction=\"{carpet_mu} 0.005 0.0001\" contype=\"{BIT_CARPET}\" conaffinity=\"0\" rgba=\"0.2 0.2 0.22 1\"/>");
         if let Some(g) = &game {
             for (i, s) in g.statics.iter().enumerate() {
                 if s.ghost { continue; }
@@ -248,7 +268,7 @@ impl World {
                     StaticShape::Box { size } => ("box", v3(scale(*size, 0.5))),
                     StaticShape::Cylinder { radius, length } => ("cylinder", format!("{} {}", f(*radius), f(length / 2.0))),
                 };
-                let _ = write!(x, "<geom name=\"s{i}\" type=\"{t}\" size=\"{size}\" pos=\"{}\" quat=\"{}\" friction=\"0.5 0.005 0.0001\" contype=\"1\" conaffinity=\"0\" rgba=\"{}\"/>", v3(s.pos), q4(q), rgba(&s.color, 1.0));
+                let _ = write!(x, "<geom name=\"s{i}\" type=\"{t}\" size=\"{size}\" pos=\"{}\" quat=\"{}\" friction=\"0.5 0.005 0.0001\" contype=\"{}\" conaffinity=\"0\" rgba=\"{}\"/>", v3(s.pos), q4(q), BIT_CARPET | BIT_FIELD, rgba(&s.color, 1.0));
             }
         }
 
@@ -302,18 +322,23 @@ impl World {
             let _ = write!(x, "<inertial pos=\"{}\" mass=\"{}\" fullinertia=\"{} {} {} {} {} {}\"/>", v3(sub(com, o)), f(mass.max(1e-3)),
                 f(it[0].max(1e-6)), f(it[4].max(1e-6)), f(it[8].max(1e-6)), f(it[1]), f(it[2]), f(it[5]));
             for (si, s) in l.shapes.iter().enumerate() {
-                let (t, size) = match s.kind {
-                    ShapeKind::Box { size } => ("box", v3(scale(size, 0.5))),
-                    ShapeKind::Cylinder { radius, length } => ("cylinder", format!("{} {}", f(radius), f(length / 2.0))),
-                    ShapeKind::Sphere { radius } => ("sphere", f(radius)),
+                let (t, size) = match &s.kind {
+                    ShapeKind::Box { size } => ("box", format!("size=\"{}\"", v3(scale(*size, 0.5)))),
+                    ShapeKind::Cylinder { radius, length } => ("cylinder", format!("size=\"{} {}\"", f(*radius), f(length / 2.0))),
+                    ShapeKind::Sphere { radius } => ("sphere", format!("size=\"{}\"", f(*radius))),
+                    ShapeKind::Hull { .. } => ("mesh", format!("mesh=\"h{id}_{si}\"")),
                 };
+                // CAD hulls touch pieces and the field but not the carpet: the drivetrain stands
+                // the robot up, and a swerve module's tread in the CAD sits right on the floor
+                let hull = matches!(s.kind, ShapeKind::Hull { .. });
                 let (ct, ca, fr) = match (s.role, l.collision) {
                     (ShapeRole::Ghost, _) | (_, Collision::None) => (0, 0, 0.5),
-                    (ShapeRole::Bumper, _) => (2, 5, 0.1),
-                    _ => (2, 5, 0.5),
+                    (ShapeRole::Bumper, _) => (BIT_ROBOT, BIT_CARPET | BIT_PIECE, 0.1),
+                    _ if hull => (BIT_ROBOT, BIT_PIECE | BIT_FIELD, 0.5),
+                    _ => (BIT_ROBOT, BIT_CARPET | BIT_PIECE, 0.5),
                 };
                 let color = s.color.clone().unwrap_or_else(|| l.color.clone());
-                let _ = write!(x, "<geom name=\"g{id}_{si}\" type=\"{t}\" size=\"{size}\" pos=\"{}\" quat=\"{}\" contype=\"{ct}\" conaffinity=\"{ca}\" friction=\"{fr} 0.005 0.0001\" rgba=\"{}\" mass=\"0\"/>",
+                let _ = write!(x, "<geom name=\"g{id}_{si}\" type=\"{t}\" {size} pos=\"{}\" quat=\"{}\" contype=\"{ct}\" conaffinity=\"{ca}\" friction=\"{fr} 0.005 0.0001\" rgba=\"{}\" mass=\"0\"/>",
                     v3(sub(s.pose.pos, o)), q4(s.pose.quat), rgba(&color, 1.0));
             }
             if id == CHASSIS && scene.mode != Mode::Bench {
