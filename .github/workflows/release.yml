@@ -39,8 +39,13 @@ jobs:
         shell: bash
         run: |
           python -m pip install --upgrade pip
-          python -m pip install cadquery-ocp pyinstaller
-          pyinstaller --noconfirm --onedir --name cadread --collect-all OCP --collect-all vtkmodules --collect-all cadquery_ocp tools/cadread/cadread.py
+          # the build without VTK (VTK is only for drawing): a third the size, the same output
+          python -m pip install cadquery-ocp-novtk pyinstaller
+          pyinstaller --noconfirm --onedir --name cadread --collect-all OCP tools/cadread/cadread.py
+          # the packaged reader must read a STEP before it ships
+          python tools/cadread/make_test_step.py smoke.step
+          dist/cadread/cadread.exe smoke.step smoke.cadpack
+          test -s smoke.cadpack/parts.json
       - name: Stage
         shell: bash
         run: |
@@ -48,6 +53,8 @@ jobs:
           cp target/release/frc-prototype-sim.exe dist/
           cp third_party/mujoco/bin/mujoco.dll dist/
           ls dist dist/cadread | head -20
+          # the packaged app finds its DLL and runs every starter robot
+          dist/frc-prototype-sim.exe --self-test && cat "$TEMP/frc-prototype-sim-self-test.txt"
       - name: Licences
         shell: bash
         run: |

@@ -30,3 +30,35 @@ jobs:
       - uses: dtolnay/rust-toolchain@1.97.1
       - name: Check (no MuJoCo link, so check only)
         run: cargo check -p model -p library -p cad
+
+  # what the release does, short of publishing: proves the Windows build before anything reaches main
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@1.97.1
+      - uses: Swatinem/rust-cache@v2
+      - name: MuJoCo
+        shell: pwsh
+        run: tools/fetch-mujoco.ps1
+      - name: Tests
+        run: cargo test --workspace --exclude app --release
+      - name: Build the app
+        run: cargo build -p app --release
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: The CAD reader, packaged, reads a STEP
+        shell: bash
+        run: |
+          python -m pip install cadquery-ocp-novtk pyinstaller
+          pyinstaller --noconfirm --onedir --name cadread --collect-all OCP tools/cadread/cadread.py
+          python tools/cadread/make_test_step.py smoke.step
+          dist/cadread/cadread.exe smoke.step smoke.cadpack
+          test -s smoke.cadpack/parts.json
+      - name: The packaged app starts
+        shell: bash
+        run: |
+          cp target/release/frc-prototype-sim.exe dist/
+          cp third_party/mujoco/bin/mujoco.dll dist/
+          dist/frc-prototype-sim.exe --self-test && cat "$TEMP/frc-prototype-sim-self-test.txt"

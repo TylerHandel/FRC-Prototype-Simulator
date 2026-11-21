@@ -598,7 +598,8 @@ pub fn masses(placed: &[Placed], lib: &Library, bom: &HashMap<String, BomRow>) -
         let volume = if p.volume.is_finite() && p.volume > 0.0 && p.volume <= boxed * 1.01 { p.volume } else { 0.5 * boxed };
         // no single part of a robot weighs 10 kg without the BOM saying so: it's a reference body
         // (a camera's field of view, a clearance volume) that came along in the part
-        let mass = match row.and_then(|b| b.mass) {
+        // Onshape reports 0 for a part with no material: that's no answer, not a weightless part
+        let mass = match row.and_then(|b| b.mass).filter(|m| *m > 0.0) {
             _ if is_reference(&p.row.name) => 0.0,
             Some(m) => m,
             None if volume * density > TOO_HEAVY => 0.0,
