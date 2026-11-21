@@ -21,8 +21,13 @@ cargo test --workspace --exclude app --release
 ```
 
 The milestone gates are `crates/sim/tests/gates.rs` (the geared lift against spike B, an intake
-taking a CORAL, step-size convergence, concept pickup, the drivetrain and battery, the field) and
-`crates/cad/tests/import.rs` (the importer on a small generated robot).
+taking a CORAL, step-size convergence, a block slipping at atan(mu), concept pickup, the
+drivetrain and battery, scripted CORAL STATION to L4 cycles on the field) and
+`crates/cad/tests/import.rs` (the importer on a small generated robot). Add `-- --nocapture` to
+see their numbers.
+
+`frc-prototype-sim --self-test` builds every starter robot and runs it for a second, then exits
+(0 when all ran). CI runs it on the packaged app.
 
 ## The command line
 
@@ -30,11 +35,15 @@ taking a CORAL, step-size convergence, concept pickup, the drivetrain and batter
 cargo run -p cli --release -- bench "path/to/project" am-compliant-4in-35a am-compliant-4in-60a
 ```
 
-`fps check`, `fps bench`, `fps sweep`, `fps import` and `fps wheels`: see `crates/cli/src/main.rs`.
+`fps check`, `fps bench`, `fps sweep`, `fps import`, `fps propose` and `fps wheels`: see
+`crates/cli/src/main.rs`. `fps propose <cadpack> --bom bom.json --mates assembly.json --save <dir>`
+reruns the importer's proposals offline on a saved import (no API calls); `FPS_HEAVY=1` lists the
+heaviest parts.
 
 ## The CAD reader
 
-`tools/cadread/cadread.py` reads STEP with OpenCascade (`pip install cadquery-ocp`). The app runs it
+`tools/cadread/cadread.py` reads STEP with OpenCascade (`pip install cadquery-ocp-novtk`; the full
+`cadquery-ocp` works too but packages three times bigger). The app runs it
 as a separate program: in a release, the PyInstaller build in `cadread/` next to the exe; developing,
 `python3 tools/cadread/cadread.py` (set `FPS_CADREAD_PYTHON` to a Python that has `cadquery-ocp`).
 `tools/cadread/make_test_step.py` writes the small test robot the importer's tests use.
@@ -49,7 +58,9 @@ calls a year: never call the API from a test or CI, and never poll faster than e
 ## Releasing
 
 Every push to `main` runs `.github/workflows/release.yml`: tests, the Windows build, the packaged
-CAD reader, and a Velopack release (`0.1.<run number>`). Installed copies find it within a minute.
+CAD reader, the self-test on the packaged app, and a Velopack release (`0.1.<run number>`).
+Installed copies find it within a minute. The Windows job in CI does all of that except
+publishing, on every push to any branch.
 The `velopack` crate and the `vpk` tool are pinned to the same version (1.2.161); change both together.
 
 ## Screenshots without a screen
