@@ -463,3 +463,42 @@ fn m5_beam_break_stops_the_intake() {
     assert!(!w.cmd.run.contains_key(&roller), "the rollers stopped by themselves with the button still down");
     assert!(w.snapshot().sensors[0].beam.is_some());
 }
+
+/// M5: ALGAE in Full physics. A claw with its rollers 14 in. apart squeezes the 16.25 in. ball
+/// between compliant wheels (the squeeze shared between wheel and ball), pulls it in against its
+/// back plate, and holds it up on a little voltage, as teams do. (At full voltage the ball hits the
+/// plate hard enough to bounce back out; coasting, it slowly sinks through.)
+#[test]
+fn m5_claw_pulls_in_and_holds_algae() {
+    let lib = Library::builtin();
+    let mut p = Project::new("algae");
+    p.robot.drivetrain = None;
+    let mut c = Template::claw_default();
+    c.mount.offset = [0.2, 0.0, 0.8];
+    if let Params::Claw { width, gap, depth, .. } = &mut c.params { *width = 0.5; *gap = 14.0 * library::IN; *depth = 0.45; }
+    let id = templates::add(&mut p.robot, c).unwrap();
+    if let Some(m) = p.robot.mechanism_mut(id) { m.fidelity = Fidelity::Full; }
+    let roller = p.robot.drives.iter().find(|d| matches!(d.target, DriveTarget::Shaft { .. })).unwrap().id;
+    let top = p.robot.rollers.iter().map(|x| x.center).fold([0.0, 0.0, f64::NEG_INFINITY], |a, b| if b[2] > a[2] { b } else { a });
+    let low = p.robot.rollers.iter().map(|x| x.center[2]).fold(f64::INFINITY, f64::min);
+    let mouth_z = (top[2] + low) / 2.0;
+    let mut scene = Scene::bench();
+    scene.pieces.push(Spawn { piece: "algae-2025".into(), pos: [top[0] + 0.12, 0.0, mouth_z + 0.01], quat: QI, lin: [-1.0, 0.0, 0.0], ang: [0.0; 3] });
+    let mut w = World::new(&p, &lib, scene).unwrap();
+    let volts: f64 = std::env::var("CLAW_V").ok().and_then(|x| x.parse().ok()).unwrap_or(4.0);
+    w.cmd.run.insert(roller, volts);
+    let mut peak: f64 = 0.0;
+    let mut k = 0;
+    while w.time < 1.5 {
+        w.step(); peak = peak.max(w.contact_force()); k += 1;
+        if k % 100 == 0 && std::env::var("CLAW_TRACE").is_ok() { let s = w.snapshot(); println!("t {:.2} ball {:?} rollers {:?} rad/s squeeze {:.0}", w.time, w.piece_positions()[0].0, s.rollers.iter().map(|r| (r.speed * 10.0).round() / 10.0).collect::<Vec<_>>(), w.contact_force()); }
+    }
+    let inside = w.piece_positions()[0].0;
+    w.cmd.run.insert(roller, 1.5);
+    while w.time < 3.0 { w.step(); }
+    let after = w.piece_positions()[0].0;
+    println!("ALGAE at {:?} running (peak squeeze {peak:.0} N), {:?} a second and a half later on 1.5 V; rollers at x {:.3}", inside.map(|v| (v * 1000.0).round() / 1000.0), after.map(|v| (v * 1000.0).round() / 1000.0), top[0]);
+    assert!(inside[0] < top[0] + 0.05, "pulled in past the rollers");
+    assert!(peak > 20.0, "squeezed by the wheels");
+    assert!((after[2] - inside[2]).abs() < 0.02 && (after[0] - inside[0]).abs() < 0.03, "held");
+}
