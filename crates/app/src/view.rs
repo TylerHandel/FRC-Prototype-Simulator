@@ -303,6 +303,10 @@ fn overlays(mut g: Gizmos, sim: Res<Sim>, st: Res<AppState>) {
     }
     let r = &st.project().robot;
     let pose_of = |id: Id| snap.links.iter().find(|l| l.id == id).map(|l| l.pose);
+    // beam breaks: green while clear, red while a piece crosses
+    for x in &snap.sensors {
+        if let Some([a, b]) = x.beam { g.line(to(a), to(b), if x.on { Color::srgb(0.95, 0.25, 0.2) } else { Color::srgb(0.3, 0.9, 0.4) }); }
+    }
     if st.view.zones && matches!(st.ws, Workspace::Build | Workspace::Field) {
         for m in &r.mechanisms {
             if st.project().fidelity(m) == model::Fidelity::Full { continue; }

@@ -431,3 +431,35 @@ fn m5_algae_on_a_plate_holds_its_weight_by_pressure() {
     println!("sank {:.2} mm: {f:.2} N holding {:.2} N", d * 1000.0, k.mass * 9.81);
     assert!((f / (k.mass * 9.81) - 1.0).abs() < 0.1, "pressure holds the weight");
 }
+
+/// M5: a beam break across where the intake holds a CORAL trips once it has one, and a button
+/// bound to "run until" it stops the rollers by itself.
+#[test]
+fn m5_beam_break_stops_the_intake() {
+    let lib = Library::builtin();
+    let mut p = Project::new("sensor");
+    let i = templates::add(&mut p.robot, Template::intake_default()).unwrap();
+    let m = p.robot.mechanism(i).unwrap().clone();
+    let h = m.holders[0].clone();
+    p.robot.sensors.push(Sensor::BeamBreak { name: "Have it".into(), link: h.link, from: add(h.pose.pos, [0.0, -0.2, 0.0]), to: add(h.pose.pos, [0.0, 0.2, 0.0]) });
+    let roller = p.robot.drives.iter().find(|d| matches!(d.target, DriveTarget::Shaft { .. })).unwrap().id;
+    p.robot.controls.bindings.retain(|b| b.button != Button::RT);
+    p.robot.controls.bindings.push(Binding { button: Button::RT, action: Action::Run { drive: roller, value: 10.0, until: Some("Have it".into()) } });
+    let mut scene = Scene::carpet();
+    let k = sim::piece::PieceKind::from_library(lib.piece("coral-2025").unwrap());
+    let (hgt, lay) = k.resting();
+    scene.pieces.push(Spawn { piece: "coral-2025".into(), pos: [1.3, 0.0, hgt], quat: lay, lin: [0.0; 3], ang: [0.0; 3] });
+    let mut w = World::new(&p, &lib, scene).unwrap();
+    w.button(Button::RT, true);
+    w.cmd.drive = [1.5, 0.0, 0.0];
+    let mut tripped = None;
+    while w.time < 3.0 {
+        w.step();
+        if tripped.is_none() && w.sensor("Have it") == Some(true) { tripped = Some(w.time); w.cmd.drive = [0.0; 3]; }
+    }
+    println!("beam broken at {tripped:?}; rollers {:?}", w.cmd.run.get(&roller));
+    assert!(tripped.is_some(), "the beam breaks");
+    assert!(w.piece_positions()[0].1, "held");
+    assert!(!w.cmd.run.contains_key(&roller), "the rollers stopped by themselves with the button still down");
+    assert!(w.snapshot().sensors[0].beam.is_some());
+}

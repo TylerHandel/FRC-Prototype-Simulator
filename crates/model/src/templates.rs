@@ -357,8 +357,8 @@ fn build(r: &mut Robot, id: Id, t: Template, ids: &mut Ids) -> anyhow::Result<()
             }
             // +y axis: positive speed turns a roller's underside backward, pulling pieces in
             let dd = drive(r, ids, "Intake rollers", motor, 1, *ratio, DriveTarget::Shaft { shaft: sh }, Control::Voltage, 40.0);
-            new_bindings.push(Binding { button: Button::RT, action: Action::Run { drive: dd, value: 10.0 } });
-            new_bindings.push(Binding { button: Button::LB, action: Action::Run { drive: dd, value: -8.0 } });
+            new_bindings.push(Binding { button: Button::RT, action: Action::Run { drive: dd, value: 10.0, until: None } });
+            new_bindings.push(Binding { button: Button::LB, action: Action::Run { drive: dd, value: -8.0, until: None } });
             m.pickup = Some(Pickup { link: l, center: math::add(c0, [0.06, 0.0, -height / 2.0 + 0.06]), size: [0.24, *width, 0.2], acquire_time: 0.15, drive: Some(dd), pieces: vec![] });
             m.holders.push(Holder { name: "In the intake".into(), link: l, pose: Pose::at(math::add(r1, [-0.08, 0.0, 0.05])), release: Release::Place { eject: 1.5 } });
         }
@@ -382,8 +382,8 @@ fn build(r: &mut Robot, id: Id, t: Template, ids: &mut Ids) -> anyhow::Result<()
             // the bottom roller turns the other way on the same belt
             for x in &mut r.rollers[bottom_start..] { x.ratio = -1.0; }
             let d = drive(r, ids, "Claw rollers", motor, 1, *ratio, DriveTarget::Shaft { shaft: sh }, Control::Voltage, 40.0);
-            new_bindings.push(Binding { button: Button::RB, action: Action::Run { drive: d, value: 8.0 } });
-            new_bindings.push(Binding { button: Button::LT, action: Action::Run { drive: d, value: -10.0 } });
+            new_bindings.push(Binding { button: Button::RB, action: Action::Run { drive: d, value: 8.0, until: None } });
+            new_bindings.push(Binding { button: Button::LT, action: Action::Run { drive: d, value: -10.0, until: None } });
             m.pickup = Some(Pickup { link: l, center: math::add(base, [depth + 0.05, 0.0, 0.0]), size: [0.15, *width, *gap + 0.04], acquire_time: 0.1, drive: Some(d), pieces: vec![] });
             m.holders.push(Holder { name: "In the claw".into(), link: l, pose: Pose::at(math::add(base, [depth * 0.5, 0.0, 0.0])), release: Release::Place { eject: 1.0 } });
         }
@@ -402,7 +402,7 @@ fn build(r: &mut Robot, id: Id, t: Template, ids: &mut Ids) -> anyhow::Result<()
             let n = ((width / (ww + 0.01)).floor() as u32).clamp(1, 6);
             rollers(r, ids, "Flywheel", sh, base, [0.0, 1.0, 0.0], *width, wheel, n, ww);
             let d = drive(r, ids, "Flywheel motors", motor, *motors, *ratio, DriveTarget::Shaft { shaft: sh }, Control::Velocity { kp: 0.05, ki: 0.0, ks: 0.15, kv: 0.0 }, 60.0);
-            new_bindings.push(Binding { button: Button::RT, action: Action::Run { drive: d, value: 400.0 } });
+            new_bindings.push(Binding { button: Button::RT, action: Action::Run { drive: d, value: 400.0, until: None } });
             m.holders.push(Holder { name: "Ready to shoot".into(), link: l,
                 pose: Pose::new(math::add(base, [-0.06, 0.0, rr + 0.02]), axis_angle([0.0, -1.0, 0.0], a)), release: Release::Launch { shaft: sh, efficiency: *efficiency } });
         }

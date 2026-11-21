@@ -662,8 +662,9 @@ pub struct Binding { pub button: Button, pub action: Action }
 pub enum Action {
     /// go to a preset
     Preset { preset: Id },
-    /// run a drive at `value` (volts, or its velocity target) while held
-    Run { drive: Id, value: f64 },
+    /// run a drive at `value` (volts, or its velocity target) while held; with `until`, it
+    /// stops as soon as that sensor (by name) reads true (an intake that stops when it has a piece)
+    Run { drive: Id, value: f64, #[serde(default, skip_serializing_if = "Option::is_none")] until: Option<String> },
     /// let go of what a mechanism holds (Concept)
     Release { mechanism: Id },
 }

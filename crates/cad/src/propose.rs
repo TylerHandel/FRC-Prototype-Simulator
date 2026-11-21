@@ -718,8 +718,8 @@ pub fn apply(r: &mut Robot, cp: &Cadpack, to_robot: &Pose, prop: &Proposal, lib:
     templates::assign_preset_buttons(r);
     for d in r.drives.clone() {
         if let DriveTarget::Shaft { .. } = d.target {
-            if !r.controls.bindings.iter().any(|b| b.button == Button::RT) { r.controls.bindings.push(Binding { button: Button::RT, action: Action::Run { drive: d.id, value: 10.0 } }); }
-            else if !r.controls.bindings.iter().any(|b| b.button == Button::RB) { r.controls.bindings.push(Binding { button: Button::RB, action: Action::Run { drive: d.id, value: 10.0 } }); }
+            if !r.controls.bindings.iter().any(|b| b.button == Button::RT) { r.controls.bindings.push(Binding { button: Button::RT, action: Action::Run { drive: d.id, value: 10.0, until: None } }); }
+            else if !r.controls.bindings.iter().any(|b| b.button == Button::RB) { r.controls.bindings.push(Binding { button: Button::RB, action: Action::Run { drive: d.id, value: 10.0, until: None } }); }
         }
     }
     for j in r.joints.clone() {

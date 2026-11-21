@@ -42,7 +42,7 @@ pub struct Trial {
 pub fn default_run(p: &Project) -> Vec<model::PresetTarget> {
     if !p.bench.run.is_empty() { return p.bench.run.clone(); }
     p.robot.drives.iter().filter(|d| matches!(d.target, DriveTarget::Shaft { .. })).map(|d| {
-        let v = p.robot.controls.bindings.iter().find_map(|b| match b.action { model::Action::Run { drive, value } if drive == d.id && value > 0.0 => Some(value), _ => None }).unwrap_or(10.0);
+        let v = p.robot.controls.bindings.iter().find_map(|b| match b.action { model::Action::Run { drive, value, .. } if drive == d.id && value > 0.0 => Some(value), _ => None }).unwrap_or(10.0);
         model::PresetTarget { drive: d.id, value: v }
     }).collect()
 }

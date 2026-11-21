@@ -74,6 +74,8 @@ pub struct Commands {
     pub targets: HashMap<Id, f64>,
     /// let go of what these mechanisms hold, this step
     pub release: Vec<Id>,
+    /// drive id -> the sensor (by name) that stops its run
+    pub until: HashMap<Id, String>,
 }
 
 #[derive(Debug, Clone)]
@@ -99,6 +101,16 @@ struct HolderRt { link: usize, pose: Pose, release: Release, piece: Option<usize
 
 #[derive(Debug, Clone)]
 struct MechRt { id: Id, full: bool, pickup: Option<(usize, Pose, V3, Option<Id>, Vec<String>, f64)>, holders: Vec<HolderRt>, dwell: HashMap<usize, f64> }
+
+#[derive(Debug, Clone)]
+enum SensorKind { Beam { link: usize, from: V3, to: V3 }, Limit { jnt: usize, at: f64, band: f64 } }
+
+#[derive(Debug, Clone)]
+struct SensorRt { name: String, kind: SensorKind, on: bool }
+
+/// A sensor's reading, and where a beam break's beam is (for drawing).
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct SensorSnap { pub name: String, pub on: bool, pub beam: Option<[V3; 2]> }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum PieceWhere { Free, Held { mech: Id }, Scored, Parked }
@@ -147,6 +159,7 @@ pub struct Snapshot {
     pub score: f64,
     pub match_time: f64,
     pub phase: String,
+    pub sensors: Vec<SensorSnap>,
 }
 
 pub struct World {
@@ -181,6 +194,7 @@ pub struct World {
     robot_bodies: Vec<usize>,
     /// (geom, link) for the robot's solid shapes
     robot_geoms: Vec<(usize, usize)>,
+    sensors: Vec<SensorRt>,
     /// how long each free piece has sat still by a seat
     settle: HashMap<usize, f64>,
 }
@@ -413,6 +427,16 @@ impl World {
         let body_of = |e: &Engine, id: Id| e.id(Obj::Body, &format!("l{id}")).unwrap();
         let links: Vec<LinkRt> = order.iter().map(|&id| LinkRt { id, body: body_of(&engine, id), origin: origin_of(id) }).collect();
         let robot_bodies: Vec<usize> = links.iter().map(|l| l.body).collect();
+        let sensors: Vec<SensorRt> = r.sensors.iter().filter_map(|x| match x {
+            Sensor::BeamBreak { name, link, from, to } => {
+                let o = origin_of(*link);
+                Some(SensorRt { name: name.clone(), kind: SensorKind::Beam { link: links.iter().position(|l| l.id == *link).unwrap_or(0), from: sub(*from, o), to: sub(*to, o) }, on: false })
+            }
+            Sensor::LimitSwitch { name, joint, at, band, .. } => {
+                let jnt = engine.id(Obj::Joint, &format!("j{joint}"))?;
+                Some(SensorRt { name: name.clone(), kind: SensorKind::Limit { jnt, at: *at, band: *band }, on: false })
+            }
+        }).collect();
         // the robot's solid geoms, for soft pieces' contact
         let mut robot_geoms: Vec<(usize, usize)> = vec![];
         for (li_, lr) in links.iter().enumerate() {
@@ -544,7 +568,7 @@ impl World {
             engine, lib: lib.clone(), project: project.clone(), scene, game, dt, time: 0.0, cmd, bus: Bus::new(r.electrical.clone()),
             warnings, matched: Match { filled: vec![0; n_zones], ..Default::default() }, mjcf,
             links, joints, drives, shafts, rollers, mechs, kinds, pieces, feeders, drive, root_body, root_joint,
-            bristles: Bristles::new(), contacts: vec![], contact_rollers: vec![], robot_bodies, robot_geoms, settle: HashMap::new(),
+            bristles: Bristles::new(), contacts: vec![], contact_rollers: vec![], robot_bodies, robot_geoms, sensors, settle: HashMap::new(),
         })
     }
 
@@ -606,8 +630,11 @@ impl World {
                         for t in &p.targets { self.cmd.targets.insert(t.drive, t.value); }
                     }
                 }
-                Action::Run { drive, value } => {
-                    if down { self.cmd.run.insert(*drive, *value); } else { self.cmd.run.remove(drive); }
+                Action::Run { drive, value, until } => {
+                    // a run that stops on a sensor doesn't start while the sensor already reads true
+                    let tripped = until.as_ref().is_some_and(|u| self.sensor(u) == Some(true));
+                    if down && !tripped { self.cmd.run.insert(*drive, *value); } else { self.cmd.run.remove(drive); }
+                    match until { Some(u) if down => { self.cmd.until.insert(*drive, u.clone()); } _ => { self.cmd.until.remove(drive); } }
                     // running a drive backwards lets go of what its mechanism holds
                     if down && *value < 0.0 {
                         let mech = self.project.robot.mechanisms.iter().find(|m| m.pickup.as_ref().is_some_and(|p| p.drive == Some(*drive))).map(|m| m.id);
@@ -623,6 +650,7 @@ impl World {
     pub fn step(&mut self) {
         let dt = self.dt;
         self.engine.begin_step();
+        if !self.sensors.is_empty() { self.read_sensors(); }
         let bus_v = self.bus.voltage;
         let mut supply = 0.0;
 
@@ -1002,6 +1030,36 @@ impl World {
         (com, ord, margin)
     }
 
+    /// a sensor's reading by name
+    pub fn sensor(&self, name: &str) -> Option<bool> { self.sensors.iter().find(|x| x.name == name).map(|x| x.on) }
+
+    /// Reads every sensor: a beam break is broken while any piece (free or held) crosses its beam;
+    /// a limit switch is on within its band. Then stops the runs waiting on one.
+    fn read_sensors(&mut self) {
+        for i in 0..self.sensors.len() {
+            let on = match self.sensors[i].kind.clone() {
+                SensorKind::Limit { jnt, at, band } => (self.engine.q(jnt) - at).abs() <= band,
+                SensorKind::Beam { link, from, to } => {
+                    let lp = self.link_pose(link);
+                    let (a, b) = (lp.apply(from), lp.apply(to));
+                    self.pieces.iter().any(|p| {
+                        let pose = match p.at { PieceWhere::Free => { let (x, q) = self.engine.free_pose(p.jnt); Pose::new(x, q) }, PieceWhere::Held { .. } => p.shown, _ => return false };
+                        let k = &self.kinds[p.kind];
+                        let n = (len(sub(b, a)) / 0.005).ceil().clamp(2.0, 400.0) as usize;
+                        (0..=n).any(|s| {
+                            let pt = lerp(a, b, s as f64 / n as f64);
+                            if len(sub(pt, pose.pos)) > k.bound() { return false; }
+                            k.sdf_local(pose.inverse().apply(pt)) < 0.0
+                        })
+                    })
+                }
+            };
+            self.sensors[i].on = on;
+        }
+        let stop: Vec<Id> = self.cmd.until.iter().filter(|(_, s)| self.sensor(s) == Some(true)).map(|(d, _)| *d).collect();
+        for d in stop { self.cmd.run.remove(&d); self.cmd.until.remove(&d); }
+    }
+
     pub fn snapshot(&self) -> Snapshot {
         let links = self.links.iter().enumerate().map(|(i, l)| LinkSnap { id: l.id, pose: self.link_pose(i) }).collect();
         let pieces = self.pieces.iter().map(|p| {
@@ -1031,6 +1089,10 @@ impl World {
             time: self.time, links, pieces, rollers, drives, contacts, bus_voltage: self.bus.voltage, bus_current: self.bus.current,
             energy: self.bus.energy, brownout: self.bus.brownout, breaker_heat: self.bus.breaker_heat, com, support, tip_margin, speed,
             score: self.matched.score, match_time: self.matched.time, phase,
+            sensors: self.sensors.iter().map(|x| SensorSnap { name: x.name.clone(), on: x.on, beam: match x.kind {
+                SensorKind::Beam { link, from, to } => { let lp = self.link_pose(link); Some([lp.apply(from), lp.apply(to)]) }
+                _ => None,
+            } }).collect(),
         }
     }
 
@@ -1082,7 +1144,7 @@ impl World {
     /// stator current of these drives together, A
     pub fn snapshot_drive_currents(&self, ids: &[Id]) -> f64 { self.drives.iter().filter(|d| ids.contains(&d.id)).map(|d| d.out.current).sum() }
     /// the squeeze on pieces this step: the rollers' normal forces together, N
-    pub fn contact_force(&self) -> f64 { self.contacts.iter().map(|c| c.normal_force).sum() }
+    pub fn contact_force(&self) -> f64 { self.contacts.iter().zip(&self.contact_rollers).filter(|(_, r)| **r != 0).map(|(c, _)| c.normal_force).sum() }
     /// (slices touching, slices slipping) this step
     pub fn contact_counts(&self) -> (usize, usize) { (self.contacts.len(), self.contacts.iter().filter(|c| c.sliding).count()) }
     /// a piece's turn about the vertical (its long axis's heading, for a tube)

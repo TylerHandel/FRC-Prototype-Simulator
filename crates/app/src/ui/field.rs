@@ -31,7 +31,7 @@ pub fn left(ui: &mut Ui, st: &mut AppState, sim: &Sim) {
     for b in &r.controls.bindings {
         let what = match &b.action {
             model::Action::Preset { preset } => r.controls.presets.iter().find(|p| p.id == *preset).map_or("?".into(), |p| p.name.clone()),
-            model::Action::Run { drive, value } => format!("{} {}", if *value >= 0.0 { "run" } else { "reverse" }, r.drive(*drive).map_or("?".into(), |d| d.name.clone())),
+            model::Action::Run { drive, value, .. } => format!("{} {}", if *value >= 0.0 { "run" } else { "reverse" }, r.drive(*drive).map_or("?".into(), |d| d.name.clone())),
             model::Action::Release { mechanism } => format!("let go ({})", r.mechanism(*mechanism).map_or("?".into(), |m| m.name.clone())),
         };
         ui.label(format!("{:?} / {}: {what}", b.button, b.button.key()));

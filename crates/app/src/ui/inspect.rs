@@ -16,7 +16,7 @@ pub fn show(ui: &mut Ui, st: &mut AppState, sim: &Sim) {
         Selection::Electrical => electrical(ui, st),
         Selection::Controls => controls(ui, st),
         Selection::Mechanism(id) => mechanism(ui, st, sim, id),
-        Selection::Link(id) => link(ui, st, id),
+        Selection::Link(id) => link(ui, st, sim, id),
         Selection::Joint(id) => joint(ui, st, id),
         Selection::Drive(id) => drive(ui, st, sim, id),
         Selection::Roller(id) => roller(ui, st, id),
@@ -164,10 +164,19 @@ fn controls(ui: &mut Ui, st: &mut AppState) {
             ui.label(format!("{:?} ({})", b.button, b.button.key()));
             let what = match &b.action {
                 Action::Preset { preset } => format!("go to {}", r.controls.presets.iter().find(|p| p.id == *preset).map_or("?".into(), |p| p.name.clone())),
-                Action::Run { drive, value } => format!("run {} at {value}", r.drive(*drive).map_or("?".into(), |d| d.name.clone())),
+                Action::Run { drive, value, until } => format!("run {} at {value}{}", r.drive(*drive).map_or("?".into(), |d| d.name.clone()), until.as_ref().map_or(String::new(), |u| format!(" until {u}"))),
                 Action::Release { mechanism } => format!("let go ({})", r.mechanism(*mechanism).map_or("?".into(), |m| m.name.clone())),
             };
             ui.label(what);
+            // a run can stop itself on a sensor
+            if let Action::Run { until, .. } = &b.action {
+                let mut u = until.clone();
+                egui::ComboBox::from_id_salt(("until", bi)).selected_text(u.clone().map_or("no stop".into(), |x| format!("until {x}"))).width(110.0).show_ui(ui, |ui| {
+                    ui.selectable_value(&mut u, None, "no stop");
+                    for x in &r.sensors { ui.selectable_value(&mut u, Some(x.name().to_string()), format!("until {}", x.name())); }
+                });
+                if u != *until { edit = Some(Box::new(move |r: &mut Robot| if let Action::Run { until, .. } = &mut r.controls.bindings[bi].action { *until = u; })); }
+            } else { ui.label(""); }
             let mut btn = b.button;
             egui::ComboBox::from_id_salt(("bind", bi)).selected_text("change").width(70.0).show_ui(ui, |ui| { for x in Button::ALL { ui.selectable_value(&mut btn, x, format!("{x:?}")); } });
             if btn != b.button { edit = Some(Box::new(move |r: &mut Robot| r.controls.bindings[bi].button = btn)); }
@@ -455,7 +464,7 @@ fn try_drive(ui: &mut Ui, st: &AppState, sim: &Sim, d: &Drive) {
     }
 }
 
-fn link(ui: &mut Ui, st: &mut AppState, id: Id) {
+fn link(ui: &mut Ui, st: &mut AppState, sim: &Sim, id: Id) {
     let Some(l) = st.project().robot.link(id).cloned() else { st.sel = Selection::Robot; return };
     heading(ui, &l.name);
     let mut mass = l.mass_or_estimate();
@@ -479,6 +488,59 @@ fn link(ui: &mut Ui, st: &mut AppState, id: Id) {
     if let Some(j) = st.project().robot.joint_of(id) {
         if ui.selectable_label(false, format!("Moves on: {}", j.name)).clicked() { st.sel = Selection::Joint(j.id); }
     }
+    sensors(ui, st, sim, id);
+}
+
+/// The beam breaks on a link: where each beam runs, whether it's broken now, add and remove.
+fn sensors(ui: &mut Ui, st: &mut AppState, sim: &Sim, id: Id) {
+    heading(ui, "Beam breaks");
+    hint(ui, "A beam that reads true while a piece crosses it. Bind a button to run a motor until it trips (Controls).");
+    let r = st.project().robot.clone();
+    let snap = sim.snap();
+    let len = st.unit(Kind::Length).clone();
+    let mut edit: Option<(usize, Sensor)> = None;
+    let mut remove = None;
+    for (si, x) in r.sensors.iter().enumerate() {
+        let Sensor::BeamBreak { name, link, from, to } = x else { continue };
+        if *link != id { continue; }
+        let on = snap.as_ref().and_then(|s| s.sensors.iter().find(|y| &y.name == name)).map(|y| y.on);
+        egui::CollapsingHeader::new(format!("{name}{}", match on { Some(true) => "  (broken)", Some(false) => "  (clear)", None => "" })).id_salt(("sensor", si)).show(ui, |ui| {
+            let (mut f, mut t, mut n) = (*from, *to, name.clone());
+            let mut ch = row(ui, "Name", "Buttons find it by this name", |ui| ui.text_edit_singleline(&mut n).lost_focus()) && n != *name;
+            for (k, axis) in ["x (forward)", "y (left)", "z (up)"].iter().enumerate() {
+                ch |= num_row(ui, &format!("From {axis}"), "", &mut f[k], Kind::Length, &len);
+            }
+            for (k, axis) in ["x (forward)", "y (left)", "z (up)"].iter().enumerate() {
+                ch |= num_row(ui, &format!("To {axis}"), "", &mut t[k], Kind::Length, &len);
+            }
+            if ch { edit = Some((si, Sensor::BeamBreak { name: n, link: id, from: f, to: t })); }
+            if ui.small_button(RichText::new("Remove").color(BAD)).clicked() { remove = Some(si); }
+        });
+    }
+    if ui.button("Add a beam break").on_hover_text("Across the link, side to side, through its middle. Move it with the numbers.").clicked() {
+        // across the middle of the link's shapes (or its parts), left to right
+        let l = r.link(id);
+        let (mut lo, mut hi) = ([f64::INFINITY; 3], [f64::NEG_INFINITY; 3]);
+        let mut grow = |p: [f64; 3]| for k in 0..3 { lo[k] = lo[k].min(p[k]); hi[k] = hi[k].max(p[k]); };
+        if let Some(l) = l {
+            for s in &l.shapes { let e = s.kind.extents(); for k in [-0.5, 0.5] { grow(model::math::add(s.pose.pos, [e[0] * k, e[1] * k, e[2] * k])); } }
+            for p in r.parts.iter().filter(|p| l.parts.contains(&p.id) && !p.hardware) { grow(p.fingerprint.bbox[0]); grow(p.fingerprint.bbox[1]); }
+        }
+        let c = if lo[0].is_finite() { model::math::lerp(lo, hi, 0.5) } else { [0.0, 0.0, 0.3] };
+        let w = if lo[1].is_finite() { (hi[1] - lo[1]) / 2.0 } else { 0.2 };
+        let n = (1..).map(|i| format!("Beam break {i}")).find(|n| !r.sensors.iter().any(|x| x.name() == n)).unwrap();
+        st.doc.edit("Add a beam break", |p| p.robot.sensors.push(Sensor::BeamBreak { name: n, link: id, from: [c[0], c[1] - w, c[2]], to: [c[0], c[1] + w, c[2]] }));
+    }
+    if let Some((si, x)) = edit {
+        let old = r.sensors[si].name().to_string();
+        st.doc.edit("~Beam break", |p| {
+            let new = x.name().to_string();
+            p.robot.sensors[si] = x;
+            // buttons follow a renamed sensor
+            for b in &mut p.robot.controls.bindings { if let Action::Run { until: Some(u), .. } = &mut b.action { if *u == old { *u = new.clone(); } } }
+        });
+    }
+    if let Some(si) = remove { st.doc.edit("Remove a beam break", |p| { p.robot.sensors.remove(si); }); }
 }
 
 fn joint(ui: &mut Ui, st: &mut AppState, id: Id) {
