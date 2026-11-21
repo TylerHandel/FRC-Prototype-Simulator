@@ -176,6 +176,13 @@ impl Axis {
         match self { Axis::Wheel(v) => v.len(), Axis::Speed(v) | Axis::StatorLimit(v) | Axis::Yaw(v) | Axis::Volts(v) => v.len(), Axis::Template { values, .. } => values.len() }
     }
     pub fn is_empty(&self) -> bool { self.len() == 0 }
+    /// what it changes, for a heading
+    pub fn name(&self) -> String {
+        match self {
+            Axis::Wheel(_) => "wheel".into(), Axis::Speed(_) => "speed".into(), Axis::StatorLimit(_) => "current limit".into(),
+            Axis::Yaw(_) => "turn".into(), Axis::Volts(_) => "roller volts".into(), Axis::Template { field, .. } => field.clone(),
+        }
+    }
     pub fn label(&self, i: usize) -> String {
         match self {
             Axis::Wheel(v) => v[i].clone(),
@@ -183,7 +190,14 @@ impl Axis {
             Axis::StatorLimit(v) => format!("{:.0} A", v[i]),
             Axis::Yaw(v) => format!("{:.0} deg", v[i]),
             Axis::Volts(v) => format!("{:.1} V", v[i]),
-            Axis::Template { field, values, .. } => format!("{field} {:.4}", values[i]),
+            Axis::Template { field, values, .. } => {
+                let v = values[i];
+                if field.contains("deg") { format!("{field} {v:.0} deg") }
+                else if field.contains("ratio") { format!("{field} {v:.1}:1") }
+                else if field.contains("mass") { format!("{field} {:.1} lb", v / library::LB) }
+                else if matches!(field.as_str(), "motors" | "stages" | "rollers" | "wheels_per_roller") { format!("{field} {v:.0}") }
+                else { format!("{field} {:.2} in", v / library::IN) }
+            }
         }
     }
     fn apply(&self, i: usize, p: &mut Project, wheel: &mut Option<String>) {
@@ -207,7 +221,30 @@ impl Axis {
 }
 
 #[derive(Debug, Clone, Serialize)]
-pub struct Cell { pub index: Vec<usize>, pub labels: Vec<String>, pub trials: usize, pub acquired: usize, pub mean_time: f64, pub mean_peak_current: f64, pub mean_peak_squeeze: f64 }
+pub struct Cell {
+    pub index: Vec<usize>, pub labels: Vec<String>, pub trials: usize, pub acquired: usize, pub mean_time: f64, pub mean_peak_current: f64, pub mean_peak_squeeze: f64,
+    /// the rollers' mean current and squeeze while touching, averaged over the throws
+    pub mean_current: f64, pub mean_squeeze: f64,
+    /// energy from the battery per throw, J
+    pub mean_energy: f64,
+}
+
+impl Cell {
+    /// the share of throws taken in
+    pub fn success(&self) -> f64 { if self.trials == 0 { 0.0 } else { self.acquired as f64 / self.trials as f64 } }
+}
+
+/// A sweep as CSV: one row per combination, with its labels and outcomes.
+pub fn sweep_csv(axes: &[Axis], cells: &[Cell]) -> String {
+    let mut s = String::new();
+    for a in axes { s.push_str(&format!("{},", a.name())); }
+    s.push_str("throws,taken in,success,mean time in (s),mean current (A),peak current (A),mean squeeze (N),peak squeeze (N),energy (J)\n");
+    for c in cells {
+        for l in &c.labels { s.push_str(&format!("\"{}\",", l.replace('"', "'"))); }
+        s.push_str(&format!("{},{},{:.3},{:.3},{:.2},{:.2},{:.1},{:.1},{:.2}\n", c.trials, c.acquired, c.success(), c.mean_time, c.mean_current, c.mean_peak_current, c.mean_squeeze, c.mean_peak_squeeze, c.mean_energy));
+    }
+    s
+}
 
 /// Every combination of the axes, `throws` random throws each (yaw and offset spread from the
 /// Bench), all in parallel.
@@ -233,6 +270,9 @@ pub fn sweep(p: &Project, lib: &Library, axes: &[Axis], throws: usize) -> Vec<Ce
             mean_time: if ins.is_empty() { f64::NAN } else { ins.iter().sum::<f64>() / ins.len() as f64 },
             mean_peak_current: mine.iter().map(|t| t.peak_current).sum::<f64>() / n,
             mean_peak_squeeze: mine.iter().map(|t| t.peak_squeeze).sum::<f64>() / n,
+            mean_current: mine.iter().map(|t| t.mean_current).sum::<f64>() / n,
+            mean_squeeze: mine.iter().map(|t| t.mean_squeeze).sum::<f64>() / n,
+            mean_energy: mine.iter().map(|t| t.energy).sum::<f64>() / n,
         }
     }).collect()
 }

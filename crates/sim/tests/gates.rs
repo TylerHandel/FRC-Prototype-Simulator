@@ -502,3 +502,32 @@ fn m5_claw_pulls_in_and_holds_algae() {
     assert!(peak > 20.0, "squeezed by the wheels");
     assert!((after[2] - inside[2]).abs() < 0.02 && (after[0] - inside[0]).abs() < 0.03, "held");
 }
+
+/// M6 gate: a 3 by 3 by 3 sweep of squeeze (the rollers' height over the ramp), speed and current
+/// limit, 20 random approaches each (540 throws), finishes in under 2 minutes, and its trends
+/// make sense: more squeeze, more squeeze force.
+#[test]
+fn m6_gate_sweep_3x3x3_by_20() {
+    let lib = Library::builtin();
+    let mut p = intake_project("am-compliant-4in-35a", 6.1);
+    p.bench.yaw_spread = 15.0;
+    p.bench.offset_spread = 0.05;
+    let intake = p.robot.mechanisms[0].id;
+    let axes = vec![
+        sim::bench::Axis::Template { mechanism: intake, field: "height".into(), values: vec![6.3 * 0.0254, 6.1 * 0.0254, 5.9 * 0.0254] },
+        sim::bench::Axis::Speed(vec![0.5, 1.0, 1.5]),
+        sim::bench::Axis::StatorLimit(vec![30.0, 40.0, 60.0]),
+    ];
+    let t = std::time::Instant::now();
+    let cells = sim::bench::sweep(&p, &lib, &axes, 20);
+    let secs = t.elapsed().as_secs_f64();
+    println!("{} combinations x 20 in {secs:.1} s on {} threads", cells.len(), rayon::current_num_threads());
+    println!("{}", sim::bench::sweep_csv(&axes, &cells).lines().take(10).collect::<Vec<_>>().join("\n"));
+    assert_eq!(cells.len(), 27);
+    assert!(cells.iter().all(|c| c.trials == 20));
+    assert!(secs < 120.0, "{secs:.0} s");
+    // squeeze: averaged over the other two
+    let by = |h: usize| { let v: Vec<f64> = cells.iter().filter(|c| c.index[0] == h).map(|c| c.mean_peak_squeeze).collect(); v.iter().sum::<f64>() / v.len() as f64 };
+    println!("peak squeeze by height: {:.0} {:.0} {:.0} N", by(0), by(1), by(2));
+    assert!(by(0) < by(1) && by(1) < by(2), "lower rollers, more squeeze");
+}

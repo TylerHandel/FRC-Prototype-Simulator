@@ -46,6 +46,18 @@ fn open(mut st: ResMut<AppState>) {
         let out = sim::bench::compare(&p, &lib, &p.bench.compare).into_iter().zip(p.bench.compare.iter()).map(|(r, w)| (lib.wheel(w).map_or(w.clone(), |x| x.name.clone()), r.map_err(|e| e.to_string()))).collect();
         st.bench.results = out;
     }
+    // FPS_SHOT_SWEEP=1: a two-way sweep (speed by roller height), shown as a heat map
+    if std::env::var("FPS_SHOT_SWEEP").is_ok() {
+        let p = st.project().clone();
+        let lib = st.lib.clone();
+        let intake = p.robot.mechanisms.iter().find(|m| matches!(m.template.as_ref().map(|t| &t.params), Some(model::templates::Params::Intake { .. }))).map_or(0, |m| m.id);
+        let axes = vec![sim::bench::Axis::Speed(vec![0.5, 1.0, 1.5, 2.0]), sim::bench::Axis::Template { mechanism: intake, field: "height".into(), values: vec![5.8 * library::IN, 6.0 * library::IN, 6.2 * library::IN, 6.4 * library::IN] }];
+        st.bench.rows = vec![(0, "0.5, 1, 1.5, 2".into()), (4, "5.8, 6.0, 6.2, 6.4".into())];
+        st.bench.sweep = sim::bench::sweep(&p, &lib, &axes, 4);
+        st.bench.sweep_axes = axes;
+        st.bench.show_sweep = true;
+        st.bench.outcome = 3;
+    }
 }
 
 fn hold_keys(mut keys: ResMut<ButtonInput<KeyCode>>) {

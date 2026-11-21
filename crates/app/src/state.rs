@@ -46,8 +46,14 @@ pub struct BenchUi {
     pub running: Option<Rx<Vec<(String, Result<sim::bench::Trial, String>)>>>,
     pub sweep: Vec<sim::bench::Cell>,
     pub sweep_running: Option<Rx<Vec<sim::bench::Cell>>>,
-    pub sweep_axis: usize,
-    pub sweep_values: String,
+    /// what to sweep: up to three rows, each a kind (see `ui::bench::KINDS`) and its values
+    pub rows: Vec<(usize, String)>,
+    /// the axes of the sweep shown, for the table, the heat map and the CSV
+    pub sweep_axes: Vec<sim::bench::Axis>,
+    /// the outcome the heat map shows
+    pub outcome: usize,
+    /// the bottom panel shows the sweep (else the comparison's plots)
+    pub show_sweep: bool,
     pub throws: usize,
 }
 
@@ -82,7 +88,7 @@ impl AppState {
         let _ = lib.load_overlay(&crate::settings::app_dir().join("library"));
         let ws = Workspace::Home;
         AppState {
-            doc: Doc::new(Project::new("My robot")), lib, dir: None, ws, sel: Selection::Robot, settings, toasts: vec![], bench: BenchUi { throws: 5, sweep_values: String::new(), ..Default::default() },
+            doc: Doc::new(Project::new("My robot")), lib, dir: None, ws, sel: Selection::Robot, settings, toasts: vec![], bench: BenchUi { throws: 5, rows: vec![(0, "0.5, 1, 1.5, 2".into())], ..Default::default() },
             view: ViewOpts { com: true, contacts: true, zones: true, axes: true, follow: false }, sim_rev: u64::MAX, new_name: "My robot".into(),
             palette_open: false, palette_query: String::new(), import: Default::default(), autosave_t: 0.0,
             plot_signals: vec!["Battery voltage".into(), "Battery current".into()],
