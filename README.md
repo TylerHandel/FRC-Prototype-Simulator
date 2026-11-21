@@ -40,7 +40,12 @@ keys: [docs/IMPORTING.md](docs/IMPORTING.md).
 - **Concept**: for the first week. A mechanism picks a piece up when the piece is in its pickup
   zone with its rollers running. Joints, motors and the battery are fully simulated.
 - **Full**: for design review. Rollers really squeeze, grip and slip on the piece; the squeeze
-  sets the current. Each mechanism has its own setting.
+  sets the current. Pieces bump into the robot's real parts from the CAD, ALGAE squashes like a
+  ball, and a CORAL only scores if it really lands on a branch. Each mechanism has its own
+  setting.
+
+Add a **beam break** to any link (click it, then "Add a beam break"), and set a button to run a
+motor "until" it trips, the way an intake stops when it has a piece.
 
 Wheel stiffness comes from each wheel's published durometer until you measure it, so trust the
 ranking between wheels more than the exact amps and newtons. [docs/BENCH.md](docs/BENCH.md) says

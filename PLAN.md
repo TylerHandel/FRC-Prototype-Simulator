@@ -29,7 +29,7 @@ the way `rebuilt-sim-native/PLAN.md` does.
    Concept robots, CAD rigging, and making a game pack. AI matches and running real robot code come
    after.
 
-## Progress (2026-11-21)
+## Progress (2026-11-21, M5 added the same day)
 
 Built in one pass through M0 to M4. Every gate that can run without a person runs in CI on Linux
 and on Windows. What each milestone has, and what is left:
@@ -41,7 +41,8 @@ and on Windows. What each milestone has, and what is left:
 | M2 | Done | Four-bar, winch, pneumatics, tank drive; the 10-minute palette test (needs a person) |
 | M3 | Done | Laying a template over CAD; the 30-minute rigging test and 60 fps check (need a person and a GPU) |
 | M4 | Done, simplified field | The field made with the M3 tools instead of a script; energy per cycle in the log |
-| M5, M6 | Not started | The Bench already has full contact, side-by-side wheels and a one-number sweep, and Analyze exports CSV |
+| M5 | Done, gate met for CORAL | ALGAE on Spectre, wheels on real contact, six robots at once (with M7), the footage comparison (needs a person) |
+| M6 | Not started | The Bench already has a one-number sweep, and Analyze exports CSV |
 
 **Measured at the gates** (`cargo test -p sim --release --test gates -- --nocapture`):
 
@@ -64,6 +65,41 @@ and on Windows. What each milestone has, and what is left:
   pivot (68 degrees), both 0.505 m slides and the wrist. The owner's 2026 robot, from its mates:
   turret (0 to 360 degrees), four steering axes, intake pivot with its limits, the hood and the
   flywheels, 157 lb, and it drives in the simulator. 8 API calls for that import.
+
+**M5, measured** (`crates/sim/tests/gates.rs`, and `crates/sim/tests/spectre.rs` run locally):
+
+- CAD collision: every imported part is a convex hull; thin parts (polycarbonate, sheet metal,
+  tube and channel walls) are flat slabs, and a slab with windows or lightening holes is cut until
+  each piece is mostly material. The owner's robot: about 470 hulls; Spectre: about 650.
+- CORAL is hollow to the field (a ring of walls), so a branch goes up inside it, and solid to the
+  robot. The branches have their L4 stop and L2/L3 arms. A piece that comes to rest within 12 cm
+  of a seat, still for 0.3 s, is scored where it lies. Test: CORAL dropped over an L4 top slides to
+  the stop and scores; one on an L3 arm scores.
+- Soft pieces meet robot shapes through their own law, in newtons: an ALGAE on a plate sinks
+  0.75 mm, where its 1 psi over the flattened patch holds its 6.67 N exactly. It bounces like a
+  playground ball. A claw with wheels 14 in. apart pulls an ALGAE in at 4 V and holds it on 1.5 V
+  (2 mm in 1.5 s).
+- Beam breaks and limit switches; a button's run can stop on one. Test: an intake stops itself
+  0.48 s after starting, holding its CORAL.
+- **The gate, CORAL:** on 2910's Spectre as the importer rigged it, a CORAL fed lengthwise into
+  the end effector is pulled in by its compliant wheels until a beam break trips (0.2 s), held on
+  a speed loop, carried to the REEF, raised, brought in, pushed out, and scored on L4 by physics
+  alone, on both branches of the face. Spectre in Full on the field runs about 8 times faster
+  than real time at 1 kHz on a 4-core cloud machine.
+- Two things a real driver does that the script had to learn: raise before closing on the REEF
+  (the end effector sweeps forward as it rises), and take the last half metre slowly (the CORAL is
+  held by the wheels' edges in this design, about 40 N of squeeze).
+
+**M5, not met as written:**
+
+1. *Off the floor.* Spectre's end effector can't reach the floor (its wheels stay about 10 cm
+   above a lying CORAL with the wrist fully turned, and the arm stops at horizontal), so its CORAL
+   comes from a station. The test feeds it in, moving, as a chute would.
+2. *ALGAE on Spectre.* Its scoring CAD has no ALGAE and its CORAL end effector can't take a 16 in.
+   ball, so how it handles ALGAE isn't known from the CAD. ALGAE in Full is shown on a template
+   claw instead.
+3. *Six robots at 1 kHz in real time.* The world holds one robot; six come with M7 (matches).
+4. *Comparison with footage, and wheels on real contact as a drivetrain option:* not done.
 
 **Gates not met as written** (the owner's call whether to loosen them):
 
@@ -96,6 +132,11 @@ and on Windows. What each milestone has, and what is left:
   solid) as nothing.
 - CI has a Windows job that does everything the release does except publish, including running
   the packaged CAD reader on a STEP and the packaged app's `--self-test`.
+- Two-pose import: a joint on a moving parent (a wrist on a telescope) had its pivot placed by the
+  parent's move twice. Fixed; pivots come from the exact formula.
+- The importer sizes its guessed joint gearing from what the joint carries (mass, reach, a
+  telescope's travel): Spectre's arm pivot went from 1 motor at 60:1, which couldn't lift it, to
+  2 at 139:1.
 
 ## What it is for
 
