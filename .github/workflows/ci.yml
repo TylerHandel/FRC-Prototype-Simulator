@@ -62,3 +62,10 @@ jobs:
           cp target/release/frc-prototype-sim.exe dist/
           cp third_party/mujoco/bin/mujoco.dll dist/
           dist/frc-prototype-sim.exe --self-test && cat "$TEMP/frc-prototype-sim-self-test.txt"
+      - name: The installer packs (not published)
+        shell: bash
+        run: |
+          dotnet tool install -g vpk --version 1.2.161
+          export PATH="$PATH:$USERPROFILE/.dotnet/tools"
+          vpk pack --packId FrcPrototypeSim --packVersion 0.0.1-ci --packDir dist --mainExe frc-prototype-sim.exe --packTitle "FRC Prototype Simulator" --outputDir vpk-out
+          ls -la vpk-out
