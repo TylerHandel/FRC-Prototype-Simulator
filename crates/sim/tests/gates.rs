@@ -336,3 +336,27 @@ fn m4_gate_station_to_l4_cycles() {
     assert!(cycles.iter().all(|c| *c > 3.0 && *c < 15.0), "plausible cycle times");
     assert!(w.engine.finite());
 }
+
+/// M1 gate, closed form: a block on a slope holds just below atan(mu) and slides just above it.
+/// The slope is a tilted gravity on a level floor, so nothing else changes between the runs.
+#[test]
+fn m1_gate_block_slips_at_atan_mu() {
+    let mu: f64 = 0.6;
+    let slip = |deg: f64| -> f64 {
+        let t = deg.to_radians();
+        let xml = format!(r#"<mujoco><option timestep="0.001" gravity="{} 0 {}" impratio="10" cone="elliptic"/>
+            <worldbody><geom type="plane" size="5 5 0.1" friction="{mu} 0.005 0.0001"/>
+            <body pos="0 0 0.05"><freejoint/><geom type="box" size="0.1 0.1 0.05" mass="2" friction="{mu} 0.005 0.0001"/></body></worldbody></mujoco>"#,
+            9.81 * t.sin(), -9.81 * t.cos());
+        let mut e = sim::engine::Engine::from_xml(&xml).unwrap();
+        for _ in 0..200 { e.begin_step(); e.step(); }
+        let x0 = e.body_pos(1)[0];
+        for _ in 0..1000 { e.begin_step(); e.step(); }
+        e.body_pos(1)[0] - x0
+    };
+    let at = mu.atan().to_degrees();
+    let (below, above) = (slip(at - 2.0), slip(at + 2.0));
+    println!("atan(mu) = {at:.1} deg: {:.2} mm in a second at 2 deg below, {:.0} mm at 2 deg above", below * 1000.0, above * 1000.0);
+    assert!(below.abs() < 0.002, "holds below atan(mu)");
+    assert!(above > 0.05, "slides above atan(mu)");
+}

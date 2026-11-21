@@ -37,7 +37,7 @@ and on Windows. What each milestone has, and what is left:
 | | State | Left to do |
 |---|---|---|
 | M0 | Done | The owner installs a release and sees it update itself (needs a push to `main`) |
-| M1 | Done, one Bench scene | Two-roller, backing-plate and belt scenes; three gate checks (below) |
+| M1 | Done, one Bench scene | Two-roller, backing-plate and belt scenes; two gate checks (below) |
 | M2 | Done | Four-bar, winch, pneumatics, tank drive; the 10-minute palette test (needs a person) |
 | M3 | Done | Laying a template over CAD; the 30-minute rigging test and 60 fps check (need a person and a GPU) |
 | M4 | Done, simplified field | The field made with the M3 tools instead of a script; energy per cycle in the log |
@@ -50,7 +50,12 @@ and on Windows. What each milestone has, and what is left:
   squeeze 63 N against 158 N. Entry time and peak squeeze agree to 0.3 % across 1, 0.5 and
   0.25 ms steps. 60A wheels squeeze 1.9 times harder than 35A on the same intake (453 N, 241 N).
 - M1 closed-form: Kraken constants, battery sag and breaker trip, the press-test formula on a flat
-  box, and FUEL between plates against AndyMark's curve all pass.
+  box, and FUEL between plates against AndyMark's curve all pass. A block on a slope (mu 0.6, the
+  world's solver settings) creeps 0.15 mm in a second 2 degrees below atan(mu) and slides 279 mm
+  2 degrees above. Energy: for every motor in the library, battery power covers work plus copper
+  heat at every speed and voltage. (It didn't at first: the Kraken X60's published stall torque and
+  free speed give kt = 1.014/kv, so the motor made 1.4 % more work than it was paid for. The
+  battery now pays at the bigger of the two.)
 - M2: a Concept intake picks a CORAL up 0.48 s after starting; the swerve base reaches 4.57 m/s
   (free speed 4.6), sags the battery to 9.3 V at 175 A, and stops.
 - M4: a scripted elevator robot runs four CORAL STATION to L4 cycles; the score (20) and the
@@ -67,8 +72,8 @@ and on Windows. What each milestone has, and what is left:
    the 1.5), where the spike used a straight spring per slice, so that a press test on a flat
    plate means the same stiffness on a curved piece (`a_wheel_on_a_flat_box_matches_the_press_formula`). So the intake is checked by behaviour (more squeeze, more force
    and current; harder wheels squeeze harder; step-size convergence) instead of against the spike.
-2. M1's block-on-a-slope, energy-balance, FUEL `pinch` against the 2026 simulator, and CORAL yaw
-   against match footage are not written yet.
+2. M1's FUEL `pinch` against the 2026 simulator and CORAL yaw against match footage are not done
+   yet (the first needs the two-wheel scene, the second a person with the footage).
 
 **Changed from the plan:**
 

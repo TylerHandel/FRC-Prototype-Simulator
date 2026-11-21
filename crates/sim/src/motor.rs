@@ -37,14 +37,18 @@ impl Motor {
         let v = volts.clamp(-bus, bus);
         let eb = w * self.ratio / self.c.kv;
         let i = (v - eb) / self.c.r;
-        let e = i.signum() * eb;
+        // published constants rarely have kt exactly 1/kv (the Kraken X60's are 1.4 % over), so
+        // the battery pays for the work at whichever is bigger: no energy from nowhere
+        let ew = w * self.ratio * self.c.kt.max(1.0 / self.c.kv);
+        let e = i.signum() * ew;
         let isup = self.supply_limit * bus;
         let cap = if isup.is_finite() { (-e + (e * e + 4.0 * self.c.r * isup).sqrt()) / (2.0 * self.c.r) } else { f64::INFINITY };
         let cap = cap.min(self.stator_limit);
         let limited = i.abs() > cap;
         let ic = if limited { i.signum() * cap } else { i };
         let applied = eb + ic * self.c.r;
-        let supply = if bus > 0.0 { (ic * applied / bus).abs() } else { 0.0 };
+        let p = if ic * w > 0.0 { ic * ew + ic * ic * self.c.r } else { (ic * applied).abs() };
+        let supply = if bus > 0.0 { p.abs() / bus } else { 0.0 };
         MotorOut { torque: self.count * self.c.kt * ic * self.ratio * self.eff, current: ic.abs() * self.count, supply: supply * self.count, volts: applied, limited }
     }
     /// output torque per volt, below the limits
@@ -80,5 +84,36 @@ mod tests {
         // a supply limit holds battery current
         let sup = Motor { supply_limit: 30.0, ..m.clone() }.torque(m.c.free * 0.5, 12.0, 12.0);
         assert!((sup.supply - 30.0).abs() < 1e-6, "{sup:?}");
+    }
+}
+
+#[cfg(test)]
+mod energy {
+    use super::*;
+
+    /// M1 gate, energy in against energy out: for every motor in the library, at any speed and
+    /// voltage while it drives a load, the battery gives at least the work done plus the copper's
+    /// heat, and no more than that plus what the motor's own losses (free current) can explain.
+    #[test]
+    fn power_in_covers_power_out() {
+        let lib = library::Library::builtin();
+        for m in &lib.motors {
+            let c = m.constants();
+            let mo = Motor::new(c.clone(), 2.0, 10.0, 1.0, f64::INFINITY, f64::INFINITY);
+            for k in 0..=20 {
+                let w = mo.free_speed() * k as f64 / 20.0;
+                for v in [3.0, 6.0, 9.0, 12.0] {
+                    let o = mo.torque(w, v, 12.0);
+                    if o.torque <= 0.0 { continue; }
+                    let p_in = o.supply * 12.0;
+                    let p_out = o.torque * w;
+                    let heat = (o.current / mo.count).powi(2) * c.r * mo.count;
+                    assert!(p_in + 1e-9 >= p_out + heat, "{}: {p_in} W in, {p_out} W out + {heat} W heat at {w} rad/s, {v} V", m.id);
+                    // what's left over is the gap between kt and 1/kv: the free-running losses
+                    let spare = p_in - p_out - heat;
+                    assert!(spare <= (o.current / mo.count) * mo.count * mo.back_emf(w) * 0.25 + 1e-6, "{}: {spare} W unaccounted", m.id);
+                }
+            }
+        }
     }
 }
