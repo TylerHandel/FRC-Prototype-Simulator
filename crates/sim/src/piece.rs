@@ -154,12 +154,34 @@ impl PieceKind {
         }
     }
 
+    /// Force a flat rigid surface takes to press `d` into the piece (a plate, a bar, a robot's
+    /// hull): an inflated ball's pressure over the flattened patch plus its skin, or a foam's
+    /// plate curve. `None` for a rigid piece.
+    pub fn plate_force(&self, d: f64) -> Option<f64> {
+        let d = d.max(0.0);
+        let r = match self.shape { Shape::Sphere { r } => r, Shape::Tube { r, .. } | Shape::Cylinder { r, .. } => r, Shape::Box { half } => half[0].min(half[1]).min(half[2]) };
+        match self.law {
+            Law::Rigid => None,
+            Law::Inflated { pressure, skin } => {
+                let patch = std::f64::consts::PI * (2.0 * r * d - d * d).max(0.0);
+                Some(pressure * patch + skin * 2.0 * (2.0 * r * d).sqrt() * d)
+            }
+            // a plate pressing d into the ball squeezes it as two plates would by 2d (see `force`)
+            Law::Foam { k0, xc } => Some(k0 * xc * (((2.0 * d) / xc).min(6.0).exp() - 1.0)),
+        }
+    }
+
+    pub fn soft(&self) -> bool { !matches!(self.law, Law::Rigid) }
+
     /// The MJCF for a free piece named `name` at a pose, colliding as `contype`/`conaffinity`.
     pub fn mjcf(&self, name: &str, pos: V3, quat: Quat, friction: f64) -> String {
         let fr = format!("friction=\"{friction} 0.005 0.0001\"");
-        let col = format!("contype=\"{BIT_PIECE}\" conaffinity=\"{}\"", BIT_CARPET | BIT_ROBOT | BIT_PIECE | BIT_FIELD);
+        // a soft piece meets the robot through our own contact (`contact::soft_rigid`), in real
+        // units; MuJoCo's soft contact only for the carpet, the field and other pieces
+        let col = if self.soft() { format!("contype=\"{BIT_SOFT}\" conaffinity=\"{}\"", BIT_CARPET | BIT_PIECE | BIT_FIELD | BIT_SOFT) }
+            else { format!("contype=\"{BIT_PIECE}\" conaffinity=\"{}\"", BIT_CARPET | BIT_ROBOT | BIT_PIECE | BIT_FIELD | BIT_SOFT) };
         // a hollow tube: round outside for the robot, the carpet and other pieces; walls for the field
-        let solid = format!("contype=\"{BIT_PIECE}\" conaffinity=\"{}\"", BIT_CARPET | BIT_ROBOT | BIT_PIECE);
+        let solid = format!("contype=\"{BIT_PIECE}\" conaffinity=\"{}\"", BIT_CARPET | BIT_ROBOT | BIT_PIECE | BIT_SOFT);
         let walls = format!("contype=\"{BIT_HOLLOW}\" conaffinity=\"{BIT_FIELD}\"");
         let soft = match self.law { Law::Rigid => "", _ => " solref=\"0.02 0.5\"" };
         let geoms = match self.shape {

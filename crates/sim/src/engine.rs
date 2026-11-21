@@ -141,6 +141,42 @@ impl Engine {
 
     pub fn set_equality(&mut self, e: usize, on: bool) { self.data.eq_active_mut()[e] = on; }
 
+    pub fn ngeom(&self) -> usize { self.data.model().ffi().ngeom as usize }
+    pub fn geom_body(&self, g: usize) -> usize { self.data.model().geom_bodyid()[g] as usize }
+    pub fn geom_pos(&self, g: usize) -> V3 { self.data.geom_xpos()[g] }
+    /// the radius of a sphere round the geom, about its position
+    pub fn geom_rbound(&self, g: usize) -> f64 { self.data.model().geom_rbound()[g] }
+    /// the signed distance between two geoms (negative: overlapping by that much), and the
+    /// nearest point on each; `None` when farther apart than `max`
+    pub fn geom_distance(&mut self, g1: usize, g2: usize, max: f64) -> Option<(f64, V3, V3)> {
+        let mut ft = [0.0; 6];
+        let d = self.data.try_geom_distance(g1, g2, max, Some(&mut ft)).ok()?;
+        if d >= max { return None; }
+        Some((d, [ft[0], ft[1], ft[2]], [ft[3], ft[4], ft[5]]))
+    }
+
     /// whether every joint position is finite (a blown-up model is not)
     pub fn finite(&self) -> bool { self.data.qpos().iter().all(|x| x.is_finite()) }
+}
+
+#[cfg(test)]
+mod probe {
+    use super::*;
+    #[test]
+    #[ignore]
+    fn mesh_distance() {
+        let xml = r#"<mujoco><asset><mesh name="m" vertex="-0.15 -0.15 -0.01 0.15 -0.15 -0.01 -0.15 0.15 -0.01 0.15 0.15 -0.01 -0.15 -0.15 0.01 0.15 -0.15 0.01 -0.15 0.15 0.01 0.15 0.15 0.01"/></asset>
+            <worldbody><geom name="h" type="mesh" mesh="m" pos="0 0 0.4"/><geom name="b" type="box" size="0.15 0.15 0.01" pos="1 0 0.4"/>
+            <body name="s" pos="0 0 1"><freejoint name="s"/><geom name="s" type="sphere" size="0.2"/></body>
+            <body name="t" pos="1 0 1"><freejoint name="t"/><geom name="t" type="sphere" size="0.2"/></body></worldbody></mujoco>"#;
+        let mut e = Engine::from_xml(xml).unwrap();
+        let (h, b, s, t) = (e.id(Obj::Geom, "h").unwrap(), e.id(Obj::Geom, "b").unwrap(), e.id(Obj::Geom, "s").unwrap(), e.id(Obj::Geom, "t").unwrap());
+        for z in [0.65, 0.62, 0.61, 0.605, 0.60, 0.59] {
+            let js = e.id(Obj::Joint, "s").unwrap(); let jt = e.id(Obj::Joint, "t").unwrap();
+            e.set_free(js, [0.0, 0.0, z], [1.0, 0.0, 0.0, 0.0], [0.0; 3], [0.0; 3]);
+            e.set_free(jt, [1.0, 0.0, z], [1.0, 0.0, 0.0, 0.0], [0.0; 3], [0.0; 3]);
+            e.forward();
+            println!("z {z}: mesh {:?}  box {:?}", e.geom_distance(s, h, 0.1), e.geom_distance(t, b, 0.1));
+        }
+    }
 }

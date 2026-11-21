@@ -376,12 +376,13 @@ fn m5_hull_collides_where_the_cad_is() {
     let mut scene = Scene::bench();
     let k = sim::piece::PieceKind::from_library(lib.piece("algae-2025").unwrap());
     let sim::piece::Shape::Sphere { r } = k.shape else { panic!() };
-    scene.pieces.push(Spawn { piece: "algae-2025".into(), pos: [c[0] + 0.05, c[1] - 0.05, 0.8], quat: QI, lin: [0.0; 3], ang: [0.0; 3] });
+    // dropped from a centimetre: an ALGAE bounces like the playground ball it is
+    scene.pieces.push(Spawn { piece: "algae-2025".into(), pos: [c[0] + 0.05, c[1] - 0.05, c[2] + 0.01 + r + 0.01], quat: QI, lin: [0.0; 3], ang: [0.0; 3] });
     let mut w = World::new(&p, &lib, scene).unwrap();
-    for _ in 0..3000 { w.step(); }
+    for _ in 0..6000 { w.step(); }
     let z = w.piece_positions()[0].0[2];
     println!("ball at {z:.3} m, plate top {:.3} + radius {r:.3}", c[2] + 0.01);
-    assert!((z - (c[2] + 0.01 + r)).abs() < 0.03, "rests on the plate");
+    assert!((z - (c[2] + 0.01 + r)).abs() < 0.003, "rests on the plate");
 }
 
 /// M5: CORAL is hollow. Dropped over an L4 branch's top it slides down to the bend and is
@@ -408,4 +409,25 @@ fn m5_coral_scores_on_branches_by_itself() {
     assert!(w.matched.log.iter().any(|e| e.what == "scored Blue L4 1l"), "L4 by itself");
     assert!(w.matched.log.iter().any(|e| e.what == "scored Blue L3 1r"), "L3 by itself");
     assert_eq!(w.matched.score, 5.0 + 4.0);
+}
+
+/// M5: soft pieces meet the robot in real units. An ALGAE resting on a robot's plate sinks until
+/// its pressure over the flattened patch holds its weight: plate_force(d) = m g.
+#[test]
+fn m5_algae_on_a_plate_holds_its_weight_by_pressure() {
+    let lib = Library::builtin();
+    let mut p = Project::new("soft");
+    p.robot.drivetrain = None;
+    let top = 0.40;
+    p.robot.links[0].shapes.push(Shape { name: "plate".into(), kind: ShapeKind::Box { size: [0.6, 0.6, 0.02] }, pose: Pose::at([0.0, 0.0, top - 0.01]), color: None, role: ShapeRole::Body });
+    let k = sim::piece::PieceKind::from_library(lib.piece("algae-2025").unwrap());
+    let sim::piece::Shape::Sphere { r } = k.shape else { panic!() };
+    let mut scene = Scene::bench();
+    scene.pieces.push(Spawn { piece: "algae-2025".into(), pos: [0.0, 0.0, top + r + 0.02], quat: QI, lin: [0.0; 3], ang: [0.0; 3] });
+    let mut w = World::new(&p, &lib, scene).unwrap();
+    for _ in 0..6000 { w.step(); }
+    let d = top + r - w.piece_positions()[0].0[2];
+    let f = k.plate_force(d).unwrap();
+    println!("sank {:.2} mm: {f:.2} N holding {:.2} N", d * 1000.0, k.mass * 9.81);
+    assert!((f / (k.mass * 9.81) - 1.0).abs() < 0.1, "pressure holds the weight");
 }

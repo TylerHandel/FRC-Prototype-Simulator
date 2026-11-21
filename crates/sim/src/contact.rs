@@ -203,6 +203,35 @@ pub fn roller_piece(
     }
 }
 
+/// A soft piece against a rigid surface (a plate, a bar, a robot's hull) at one contact, in real
+/// units (M5): the piece's own plate force at `depth`, higher going in than coming out by `LOSS`,
+/// and a bristle for friction. `normal` points from the surface into the piece; `vrel` is the
+/// surface's velocity less the piece's at the contact. Returns the force on the piece.
+#[allow(clippy::too_many_arguments)]
+pub fn soft_rigid(kind: &PieceKind, depth: f64, normal: V3, point: V3, vrel: V3, mu_static: f64, mu_sliding: f64, dt: f64, b: &mut Bristle) -> Option<SliceContact> {
+    const LOSS: f64 = 0.15;
+    let f0 = kind.plate_force(depth)?;
+    if depth <= 0.0 || f0 <= 0.0 { return None; }
+    let closing = dot(vrel, normal);
+    let fnorm = (f0 * (1.0 + LOSS * (closing / 0.05).tanh())).max(0.0);
+    let k = ((kind.plate_force(depth * 1.01)? - f0) / (0.01 * depth)).max(1.0);
+    let vt = sub(vrel, scale(normal, closing));
+    b.s = add(b.s, scale(vt, dt));
+    b.s = sub(b.s, scale(normal, dot(b.s, normal)));
+    let kt = 0.8 * k;
+    let mut ft = scale(b.s, kt);
+    let mag = len(ft);
+    let cap = if b.sliding { mu_sliding * fnorm } else { mu_static * fnorm };
+    if mag > cap && mag > 0.0 {
+        ft = scale(ft, mu_sliding * fnorm / mag);
+        b.s = scale(ft, 1.0 / kt);
+        b.sliding = true;
+    } else if b.sliding && len(vt) < 0.01 {
+        b.sliding = false;
+    }
+    Some(SliceContact { point, force: add(scale(normal, fnorm), ft), normal, depth, wheel_depth: 0.0, normal_force: fnorm, sliding: b.sliding, stiffness: k })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

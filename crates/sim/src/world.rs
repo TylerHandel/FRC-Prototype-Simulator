@@ -104,7 +104,7 @@ struct MechRt { id: Id, full: bool, pickup: Option<(usize, Pose, V3, Option<Id>,
 pub enum PieceWhere { Free, Held { mech: Id }, Scored, Parked }
 
 #[derive(Debug, Clone)]
-struct PieceRt { kind: usize, jnt: usize, body: usize, at: PieceWhere, shown: Pose, park: V3 }
+struct PieceRt { kind: usize, jnt: usize, body: usize, at: PieceWhere, shown: Pose, park: V3, soft_geom: Option<usize> }
 
 #[derive(Debug, Clone)]
 struct FeederRt { last: f64 }
@@ -179,6 +179,8 @@ pub struct World {
     contacts: Vec<SliceContact>,
     contact_rollers: Vec<Id>,
     robot_bodies: Vec<usize>,
+    /// (geom, link) for the robot's solid shapes
+    robot_geoms: Vec<(usize, usize)>,
     /// how long each free piece has sat still by a seat
     settle: HashMap<usize, f64>,
 }
@@ -411,6 +413,16 @@ impl World {
         let body_of = |e: &Engine, id: Id| e.id(Obj::Body, &format!("l{id}")).unwrap();
         let links: Vec<LinkRt> = order.iter().map(|&id| LinkRt { id, body: body_of(&engine, id), origin: origin_of(id) }).collect();
         let robot_bodies: Vec<usize> = links.iter().map(|l| l.body).collect();
+        // the robot's solid geoms, for soft pieces' contact
+        let mut robot_geoms: Vec<(usize, usize)> = vec![];
+        for (li_, lr) in links.iter().enumerate() {
+            let Some(l) = r.link(lr.id) else { continue };
+            if l.collision == Collision::None { continue; }
+            for (si, s) in l.shapes.iter().enumerate() {
+                if s.role == ShapeRole::Ghost { continue; }
+                if let Some(g) = engine.id(Obj::Geom, &format!("g{}_{si}", l.id)) { robot_geoms.push((g, li_)); }
+            }
+        }
         let li = |id: Id| links.iter().position(|l| l.id == id).unwrap_or(0);
         let mut joints: Vec<JointRt> = Vec::new();
         for j in &r.joints {
@@ -492,7 +504,8 @@ impl World {
             let jnt = engine.id(Obj::Joint, &format!("p{i}")).unwrap();
             let body = engine.id(Obj::Body, &format!("p{i}")).unwrap();
             let parked = s.pos[2] < -10.0;
-            PieceRt { kind: piece_kind_idx[i], jnt, body, at: if parked { PieceWhere::Parked } else { PieceWhere::Free }, shown: Pose::new(s.pos, s.quat), park: [200.0 + 3.0 * i as f64, 200.0, -20.0] }
+            let geom = if kinds[piece_kind_idx[i]].soft() { (0..engine.ngeom()).find(|g| engine.geom_body(*g) == body) } else { None };
+            PieceRt { kind: piece_kind_idx[i], jnt, body, at: if parked { PieceWhere::Parked } else { PieceWhere::Free }, shown: Pose::new(s.pos, s.quat), park: [200.0 + 3.0 * i as f64, 200.0, -20.0], soft_geom: geom }
         }).collect();
         for (i, s) in spawns.iter().enumerate() { engine.set_free(pieces[i].jnt, if pieces[i].at == PieceWhere::Parked { pieces[i].park } else { s.pos }, s.quat, s.lin, s.ang); }
         let drive = match (&r.drivetrain, scene.mode) {
@@ -531,7 +544,7 @@ impl World {
             engine, lib: lib.clone(), project: project.clone(), scene, game, dt, time: 0.0, cmd, bus: Bus::new(r.electrical.clone()),
             warnings, matched: Match { filled: vec![0; n_zones], ..Default::default() }, mjcf,
             links, joints, drives, shafts, rollers, mechs, kinds, pieces, feeders, drive, root_body, root_joint,
-            bristles: Bristles::new(), contacts: vec![], contact_rollers: vec![], robot_bodies, settle: HashMap::new(),
+            bristles: Bristles::new(), contacts: vec![], contact_rollers: vec![], robot_bodies, robot_geoms, settle: HashMap::new(),
         })
     }
 
@@ -678,6 +691,35 @@ impl World {
                     self.contacts.push(*sc);
                     self.contact_rollers.push(rl.id);
                 }
+            }
+        }
+
+        // ---- soft pieces against the robot's rigid shapes (M5) ----
+        for pi in 0..self.pieces.len() {
+            let Some(pg) = self.pieces[pi].soft_geom else { continue };
+            if self.pieces[pi].at != PieceWhere::Free { continue; }
+            let pb = self.pieces[pi].body;
+            let kind = &self.kinds[self.pieces[pi].kind];
+            let (mu_s, mu_k) = match kind.surface.as_str() { "playground-rubber" => (0.9, 0.7), "foam" => (0.8, 0.65), _ => (0.5, 0.4) };
+            let (pc, pr) = (self.engine.geom_pos(pg), self.engine.geom_rbound(pg));
+            for gi in 0..self.robot_geoms.len() {
+                let (g, li_) = self.robot_geoms[gi];
+                let key = (u32::MAX - g as u32, 0u16, pi as u32);
+                if len(sub(self.engine.geom_pos(g), pc)) > pr + self.engine.geom_rbound(g) { self.bristles.remove(&key); continue; }
+                let Some((d, _, on_robot)) = self.engine.geom_distance(pg, g, 0.001) else { self.bristles.remove(&key); continue };
+                if d >= 0.0 { self.bristles.remove(&key); continue; }
+                let away = sub(pc, on_robot);
+                if len(away) < 1e-9 { continue; }
+                let n = norm(away);
+                let lb = self.links[li_].body;
+                let (vr, _) = self.engine.velocity_at(lb, on_robot);
+                let (vp, _) = self.engine.velocity_at(pb, on_robot);
+                let b = self.bristles.entry(key).or_default();
+                let Some(c) = contact::soft_rigid(&self.kinds[self.pieces[pi].kind], -d, n, on_robot, sub(vr, vp), mu_s, mu_k, dt, b) else { continue };
+                self.engine.push(pb, c.force, c.point);
+                self.engine.push(lb, neg(c.force), c.point);
+                self.contacts.push(c);
+                self.contact_rollers.push(0);
             }
         }
 
