@@ -84,6 +84,8 @@ pub struct AppState {
     pub game: Option<(String, Result<sim::game::Found, String>)>,
     /// every pack the Field's picker offers, and each one's problems (refreshed on Reload)
     pub games: Vec<(String, String, Vec<String>)>,
+    /// runs kept to compare (Analyze), saved with the project
+    pub kept: Vec<crate::ui::analyze::Kept>,
 }
 
 impl AppState {
@@ -95,7 +97,7 @@ impl AppState {
             doc: Doc::new(Project::new("My robot")), lib, dir: None, ws, sel: Selection::Robot, settings, toasts: vec![], bench: BenchUi { throws: 5, rows: vec![(0, "0.5, 1, 1.5, 2".into())], ..Default::default() },
             view: ViewOpts { com: true, contacts: true, zones: true, axes: true, follow: false }, sim_rev: u64::MAX, new_name: "My robot".into(),
             palette_open: false, palette_query: String::new(), import: Default::default(), autosave_t: 0.0,
-            plot_signals: vec!["Battery voltage".into(), "Battery current".into()], game: None, games: vec![],
+            plot_signals: vec!["Battery voltage".into(), "Battery current".into()], game: None, games: vec![], kept: vec![],
         }
     }
     pub fn project(&self) -> &Project { &self.doc.project }
@@ -135,6 +137,7 @@ impl AppState {
         match crate::projects::load(&dir) {
             Ok(p) => {
                 self.doc = Doc::new(p);
+                self.kept = crate::ui::analyze::load_kept(&dir);
                 self.settings.remember(&dir);
                 self.dir = Some(dir);
                 self.sel = Selection::Robot;

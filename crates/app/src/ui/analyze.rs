@@ -1,4 +1,5 @@
-//! Analyze: the run's recording as plots, the power budget, and CSV export (D16).
+//! Analyze: the run's recording as plots, the power budget, CSV export (D16), and runs kept to
+//! compare side by side (M6): run, keep it, change the robot, run again.
 use bevy_egui::egui::{self, RichText, Ui};
 use egui_plot::{Legend, Line, Plot};
 
@@ -30,7 +31,78 @@ fn value(s: &sim::Snapshot, name: &str, names: &[(model::Id, String)]) -> Option
     })
 }
 
+/// A run kept to compare: every signal it recorded, and its numbers.
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct Kept {
+    pub name: String,
+    pub signals: std::collections::BTreeMap<String, Vec<[f64; 2]>>,
+    pub numbers: Vec<(String, f64)>,
+    #[serde(default = "yes")]
+    pub show: bool,
+}
+
+fn yes() -> bool { true }
+
+const KEPT_FILE: &str = "runs/kept.json";
+
+pub fn load_kept(dir: &std::path::Path) -> Vec<Kept> {
+    std::fs::read_to_string(dir.join(KEPT_FILE)).ok().and_then(|s| serde_json::from_str(&s).ok()).unwrap_or_default()
+}
+
+fn save_kept(st: &AppState) {
+    let Some(dir) = &st.dir else { return };
+    let _ = std::fs::create_dir_all(dir.join("runs"));
+    if let Ok(s) = serde_json::to_string(&st.kept) { let _ = std::fs::write(dir.join(KEPT_FILE), s); }
+}
+
+/// The numbers a run is compared by.
+fn numbers(hist: &[sim::Snapshot], names: &[(model::Id, String)]) -> Vec<(String, f64)> {
+    let span = hist.last().map_or(0.0, |l| l.time) - hist.first().map_or(0.0, |f| f.time);
+    let mut v = vec![
+        ("Length (s)".to_string(), span),
+        ("Battery used (Wh)".into(), (hist.last().map_or(0.0, |l| l.energy) - hist.first().map_or(0.0, |f| f.energy)) / 3600.0),
+        ("Peak battery current (A)".into(), hist.iter().map(|s| s.bus_current).fold(0.0, f64::max)),
+        ("Lowest battery voltage (V)".into(), hist.iter().map(|s| s.bus_voltage).fold(f64::INFINITY, f64::min)),
+        ("Top speed (m/s)".into(), hist.iter().map(|s| s.speed).fold(0.0, f64::max)),
+        ("Least tip margin (m)".into(), hist.iter().map(|s| s.tip_margin).fold(f64::INFINITY, f64::min)),
+        ("Score".into(), hist.last().map_or(0.0, |l| l.score)),
+    ];
+    for (id, n) in names {
+        let c: Vec<f64> = hist.iter().filter_map(|s| s.drives.iter().find(|d| d.id == *id).map(|d| d.current)).collect();
+        if !c.is_empty() && c.iter().any(|x| *x > 0.5) { v.push((format!("{n}: mean A"), c.iter().sum::<f64>() / c.len() as f64)); }
+    }
+    v
+}
+
+pub fn keep(st: &mut AppState, sim: &Sim) {
+    let (hist, names) = sim.shared.lock().map(|s| (s.history.iter().cloned().collect::<Vec<_>>(), s.drive_names.clone())).unwrap_or_default();
+    if hist.len() < 2 { st.toast("Run something first"); return; }
+    let t0 = hist[0].time;
+    let signals = signals(sim).into_iter().map(|n| { let pts = hist.iter().filter_map(|s| value(s, &n, &names).map(|v| [s.time - t0, v])).collect(); (n, pts) }).collect();
+    let name = format!("{} {}", st.project().name, st.kept.len() + 1);
+    st.kept.push(Kept { name: name.clone(), signals, numbers: numbers(&hist, &names), show: true });
+    save_kept(st);
+    st.toast(format!("Kept as '{name}': change something, run again, and compare"));
+}
+
+const RUN_COLORS: [egui::Color32; 6] = [egui::Color32::from_rgb(80, 170, 240), egui::Color32::from_rgb(120, 210, 110), egui::Color32::from_rgb(220, 100, 200), egui::Color32::from_rgb(235, 190, 70), egui::Color32::from_rgb(150, 156, 166), egui::Color32::from_rgb(90, 200, 200)];
+
 pub fn left(ui: &mut Ui, st: &mut AppState, sim: &Sim) {
+    heading(ui, "Compare runs");
+    hint(ui, "Keep a run, change the robot (a wheel, a ratio, a limit), run again, and see both side by side.");
+    if ui.button(RichText::new("Keep this run").strong()).clicked() { keep(st, sim); }
+    let mut remove = None;
+    let mut changed = false;
+    for (i, k) in st.kept.iter_mut().enumerate() {
+        ui.horizontal(|ui| {
+            changed |= ui.checkbox(&mut k.show, "").changed();
+            ui.colored_label(RUN_COLORS[i % RUN_COLORS.len()], "■");
+            changed |= ui.add(egui::TextEdit::singleline(&mut k.name).desired_width(130.0)).lost_focus();
+            if ui.small_button("x").on_hover_text("Forget this run").clicked() { remove = Some(i); }
+        });
+    }
+    if let Some(i) = remove { st.kept.remove(i); changed = true; }
+    if changed { save_kept(st); }
     heading(ui, "Signals");
     hint(ui, "Pick what to plot from the last run (up to 5 minutes is kept).");
     for s in signals(sim) {
@@ -69,6 +141,7 @@ pub fn right(ui: &mut Ui, st: &mut AppState, sim: &Sim) {
     if brown > 0 { ui.colored_label(BAD, format!("Brownout for {:.2} s", brown as f64 * 0.01)); }
     ui.add_space(8.0);
     if ui.button("Export the run as CSV").clicked() { export_csv(st, sim); }
+    comparison(ui, st, sim);
 }
 
 pub fn export_csv(st: &mut AppState, sim: &Sim) {
@@ -94,13 +167,51 @@ pub fn export_csv(st: &mut AppState, sim: &Sim) {
 
 pub fn bottom(ui: &mut Ui, st: &mut AppState, sim: &Sim) {
     let (hist, names) = sim.shared.lock().map(|s| (s.history.iter().cloned().collect::<Vec<_>>(), s.drive_names.clone())).unwrap_or_default();
+    let comparing = st.kept.iter().any(|k| k.show);
+    // with kept runs shown, every run starts at 0 s so they line up
+    let t0 = if comparing { hist.first().map_or(0.0, |s| s.time) } else { 0.0 };
     Plot::new("analyze").legend(Legend::default()).height(ui.available_height() - 4.0).show(ui, |p| {
         for name in &st.plot_signals {
-            let pts: Vec<[f64; 2]> = hist.iter().filter_map(|s| value(s, name, &names).map(|v| [s.time, v])).collect();
-            p.line(Line::new(name.clone(), pts));
+            let pts: Vec<[f64; 2]> = hist.iter().filter_map(|s| value(s, name, &names).map(|v| [s.time - t0, v])).collect();
+            let label = if comparing { format!("{name} (now)") } else { name.clone() };
+            let mut line = Line::new(label, pts);
+            if comparing { line = line.color(ACCENT); }
+            p.line(line);
+            for (i, k) in st.kept.iter().enumerate().filter(|(_, k)| k.show) {
+                if let Some(pts) = k.signals.get(name) {
+                    p.line(Line::new(format!("{name} ({})", k.name), pts.clone()).color(RUN_COLORS[i % RUN_COLORS.len()]));
+                }
+            }
         }
     });
 }
+
+/// The kept runs' numbers beside this run's, one column each.
+fn comparison(ui: &mut Ui, st: &AppState, sim: &Sim) {
+    let shown: Vec<(usize, &Kept)> = st.kept.iter().enumerate().filter(|(_, k)| k.show).collect();
+    if shown.is_empty() { return; }
+    let (hist, names) = sim.shared.lock().map(|s| (s.history.iter().cloned().collect::<Vec<_>>(), s.drive_names.clone())).unwrap_or_default();
+    let now = numbers(&hist, &names);
+    heading(ui, "Side by side");
+    egui::ScrollArea::horizontal().id_salt("cmp").show(ui, |ui| {
+        egui::Grid::new("cmp_grid").striped(true).show(ui, |ui| {
+            ui.label("");
+            for (i, k) in &shown { ui.colored_label(RUN_COLORS[i % RUN_COLORS.len()], RichText::new(&k.name).strong()); }
+            ui.colored_label(ACCENT, RichText::new("Now").strong());
+            ui.end_row();
+            let mut rows: Vec<String> = now.iter().map(|x| x.0.clone()).collect();
+            for (_, k) in &shown { for (n, _) in &k.numbers { if !rows.contains(n) { rows.push(n.clone()); } } }
+            for r in rows {
+                ui.label(&r);
+                for (_, k) in &shown { ui.label(k.numbers.iter().find(|x| x.0 == r).map_or("-".into(), |x| fmt(x.1))); }
+                ui.label(now.iter().find(|x| x.0 == r).map_or("-".into(), |x| fmt(x.1)));
+                ui.end_row();
+            }
+        });
+    });
+}
+
+fn fmt(v: f64) -> String { if !v.is_finite() { "-".into() } else if v.abs() >= 100.0 { format!("{v:.0}") } else if v.abs() >= 10.0 { format!("{v:.1}") } else { format!("{v:.2}") } }
 
 /// Battery voltage and current over the last 10 s, small.
 pub fn mini_plot(ui: &mut Ui, _st: &AppState, sim: &Sim, height: f32) {

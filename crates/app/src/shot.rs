@@ -16,7 +16,7 @@ impl Plugin for ShotPlugin {
             app.insert_resource(Shot { path, frames: 0, taken: false })
                 .add_systems(Startup, open)
                 .add_systems(PreUpdate, hold_keys.after(bevy::input::InputSystems))
-                .add_systems(Update, shoot);
+                .add_systems(Update, (shoot, keep_at));
         }
     }
 }
@@ -78,4 +78,10 @@ fn shoot(mut commands: Commands, mut shot: ResMut<Shot>, mut exit: MessageWriter
         shot.taken = true;
     }
     if shot.taken && shot.frames >= wait + 30 { exit.write(AppExit::Success); }
+}
+
+/// FPS_SHOT_KEEP_AT=<frame>: keep the run (Analyze's "Keep this run") at that frame.
+fn keep_at(shot: Res<Shot>, mut st: ResMut<crate::state::AppState>, sim: Res<crate::simrun::Sim>) {
+    let Some(at) = std::env::var("FPS_SHOT_KEEP_AT").ok().and_then(|x| x.parse::<u32>().ok()) else { return };
+    if shot.frames == at { crate::ui::analyze::keep(&mut st, &sim); }
 }
