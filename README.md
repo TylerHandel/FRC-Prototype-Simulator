@@ -19,6 +19,7 @@ Windows only for now.
    ready to drive.
 2. **Build**: drive it with W A S D and the arrow keys (or a gamepad). Click a mechanism in the
    list or in the 3D view to change its numbers on the right: the robot changes while it runs.
+   Click one of its motors to try it by hand: hold **forward** or **back**, or slide **Go to**.
 3. **Bench**: the intake on a stand with CORAL driven onto it. Pick wheels to compare under
    "Compare wheels" and press **Run the comparison**: each wheel's current, squeeze and speed,
    side by side.

@@ -62,6 +62,19 @@ what really moves:
 
 Parts nobody mated join the nearest link in their sub-assembly; the app tells you how many.
 
+What the app does with your mates, so the result isn't a surprise (each shows up as a note under
+the proposal):
+
+- **Swerve steering** (four upright revolutes low on the chassis) isn't made into joints: the
+  drivetrain model handles steering, and those axes give the modules' places.
+- **Rollers, pulleys and idlers** (a revolute whose parts all stay close to its axis) ride with what
+  carries them; rollers are found separately and spin in the simulation anyway.
+- **A group with no joint to the rest** (its mates weren't exported, or were never made) is fixed
+  to the link it touches.
+- **Reference bodies** weigh nothing and don't collide: clearance boxes, keep-out volumes, and any
+  part that would weigh more than 10 kg with no mass in Onshape (a camera model with its field of
+  view as a solid, for example). If one is real, give it a mass in its inspector.
+
 ## Another team's CAD
 
 Onshape only shares the mates of your own documents and of fully public ones. For a document that's

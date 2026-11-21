@@ -1,6 +1,6 @@
 # FRC Prototype Simulator: plan
 
-Written 2026-11-20 for the model that builds it. The owner reads it too, so it says what is decided,
+Written 2026-11-20 for the model that builds it; progress added 2026-11-21. The owner reads it too, so it says what is decided,
 why, and what is still theirs to answer. Keep it current as work lands: mark milestones done here,
 the way `rebuilt-sim-native/PLAN.md` does.
 
@@ -28,6 +28,69 @@ the way `rebuilt-sim-native/PLAN.md` does.
 7. **Kickoff is early January 2027.** The order of work puts what kickoff needs first: the bench,
    Concept robots, CAD rigging, and making a game pack. AI matches and running real robot code come
    after.
+
+## Progress (2026-11-21)
+
+Built in one pass through M0 to M4. Every gate that can run without a person runs in CI on Linux
+and on Windows. What each milestone has, and what is left:
+
+| | State | Left to do |
+|---|---|---|
+| M0 | Done | The owner installs a release and sees it update itself (needs a push to `main`) |
+| M1 | Done, one Bench scene | Two-roller, backing-plate and belt scenes; three gate checks (below) |
+| M2 | Done | Four-bar, winch, pneumatics, tank drive; the 10-minute palette test (needs a person) |
+| M3 | Done | Laying a template over CAD; the 30-minute rigging test and 60 fps check (need a person and a GPU) |
+| M4 | Done, simplified field | The field made with the M3 tools instead of a script; energy per cycle in the log |
+| M5, M6 | Not started | The Bench already has full contact, side-by-side wheels and a one-number sweep, and Analyze exports CSV |
+
+**Measured at the gates** (`cargo test -p sim --release --test gates -- --nocapture`):
+
+- M0 lift (spike B): 1.084 s to 1 m, 1.5 mm over. The spike: 1.088 s, 1.5 mm.
+- M1 intake: a light squeeze takes a CORAL in 0.49 s at 25 A mean; a firm one in 0.46 s at 31 A,
+  squeeze 63 N against 158 N. Entry time and peak squeeze agree to 0.3 % across 1, 0.5 and
+  0.25 ms steps. 60A wheels squeeze 1.9 times harder than 35A on the same intake (453 N, 241 N).
+- M1 closed-form: Kraken constants, battery sag and breaker trip, the press-test formula on a flat
+  box, and FUEL between plates against AndyMark's curve all pass.
+- M2: a Concept intake picks a CORAL up 0.48 s after starting; the swerve base reaches 4.57 m/s
+  (free speed 4.6), sags the battery to 9.3 V at 175 A, and stops.
+- M4: a scripted elevator robot runs four CORAL STATION to L4 cycles; the score (20) and the
+  cycle log match the hand count. Cycles of 8 to 14 s under the scripted driver.
+- M3 on real CAD: 2910's Spectre (1,957 parts) reads in under 3 minutes, and two poses give the
+  pivot (68 degrees), both 0.505 m slides and the wrist. The owner's 2026 robot, from its mates:
+  turret (0 to 360 degrees), four steering axes, intake pivot with its limits, the hood and the
+  flywheels, 157 lb, and it drives in the simulator. 8 API calls for that import.
+
+**Gates not met as written** (the owner's call whether to loosen them):
+
+1. M0 asks the intake spike to land within 5 % too. The contact law changed after the spike: each
+   slice now follows the foundation law with both surfaces' curvature (force grows as depth to
+   the 1.5), where the spike used a straight spring per slice, so that a press test on a flat
+   plate means the same stiffness on a curved piece (`a_wheel_on_a_flat_box_matches_the_press_formula`). So the intake is checked by behaviour (more squeeze, more force
+   and current; harder wheels squeeze harder; step-size convergence) instead of against the spike.
+2. M1's block-on-a-slope, energy-balance, FUEL `pinch` against the 2026 simulator, and CORAL yaw
+   against match footage are not written yet.
+
+**Changed from the plan:**
+
+- The CAD reader is OpenCascade from Python (`cadquery-ocp-novtk`), packaged with PyInstaller into
+  a folder beside the app (418 MB), not a C++ sidecar. The same output, much less code; nobody
+  installs Python.
+- Onshape keys are kept in the app's data folder (`onshape-keys.json`), not the system keychain.
+  Each user enters their own; they never go into a project.
+- Rust 1.97.1 (Bevy 0.20 needs it), MuJoCo 3.17.0 through `mujoco-rs` 7.1.0.
+- The engine splits each step in two (`mj_step1`, then our forces, then `mj_step2`) because body
+  velocities read after `mj_step` are a step old; that stale read capped the drivetrain at 3.25 m/s.
+- The intake template is over the bumper, with a ramp, so a CORAL rides up rather than jamming.
+- A running Concept pickup holds a piece that enters it while it's drawn in, so a CORAL dropped
+  from a station doesn't fall through a claw.
+- The Bench tests the robot's own mechanism against a stream of pieces (distance, speed, yaw and
+  offset, each with a spread) rather than separate fixture scenes.
+- The import also: treats four upright hinges low on the chassis as swerve steering, merges
+  anything spinning close to its own axis (rollers, pulleys) into its carrier, fixes groups with no
+  joint to what they touch, and weighs reference bodies (clearance boxes, a camera's field-of-view
+  solid) as nothing.
+- CI has a Windows job that does everything the release does except publish, including running
+  the packaged CAD reader on a STEP and the packaged app's `--self-test`.
 
 ## What it is for
 
