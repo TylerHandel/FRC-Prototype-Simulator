@@ -8,6 +8,7 @@
 //!   fps wheels                                   the wheel library
 use library::Library;
 use model::Project;
+use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 
 fn load(dir: &Path) -> anyhow::Result<Project> { Project::from_json(&std::fs::read_to_string(dir.join("robot.json"))?) }
@@ -94,7 +95,8 @@ fn main() -> anyhow::Result<()> {
             let assembly = get("--mates").map(|f| serde_json::from_str(&std::fs::read_to_string(f).unwrap()).unwrap());
             let im = cad::import::Imported { dir: PathBuf::from(&args[1]), cadpack: cp, second, assembly, bom, source: model::CadKind::Step { path: args[1].clone() }, notes: vec![], calls: 0 };
             let t0 = std::time::Instant::now();
-            let (_, prop) = cad::import::proposals(&im, &lib, cad::cadpack::Dir::PX, cad::cadpack::Dir::PZ);
+            let fwd = get("--forward").and_then(|s| cad::cadpack::Dir::ALL.into_iter().find(|x| x.label().eq_ignore_ascii_case(&s))).unwrap_or(cad::cadpack::Dir::PX);
+            let (to, prop) = cad::import::proposals(&im, &lib, fwd, cad::cadpack::Dir::PZ);
             println!("proposed in {:.2} s from {}", t0.elapsed().as_secs_f64(), prop.links_from);
             for l in &prop.links { println!("  link {:<45} {:>4} parts", l.name, l.parts.len()); }
             for j in &prop.joints { println!("  joint {:<45} {:?} parent {} axis [{:.2} {:.2} {:.2}] at [{:.3} {:.3} {:.3}] range {:?}", j.name, j.kind, j.parent, j.axis[0], j.axis[1], j.axis[2], j.anchor[0], j.anchor[1], j.anchor[2], j.range.map(|r| [(r[0] * 1000.0).round() / 1000.0, (r[1] * 1000.0).round() / 1000.0])); }
@@ -105,7 +107,24 @@ fn main() -> anyhow::Result<()> {
             println!("  motors {m:?}");
             let total: f64 = prop.masses.values().map(|x| x.1).sum();
             println!("  total mass {:.1} kg ({:.1} lb)", total, total / library::LB);
+            if std::env::var("FPS_HEAVY").is_ok() {
+                let names: HashMap<&str, &str> = im.cadpack.parts.iter().map(|p| (p.id.as_str(), p.name.as_str())).collect();
+                let mut h: Vec<_> = prop.masses.iter().collect();
+                h.sort_by(|a, b| b.1.1.total_cmp(&a.1.1));
+                for (id, (mat, kg)) in h.iter().take(25) { println!("    {:8.2} kg  {:?}  {}", kg, mat, names.get(id.as_str()).unwrap_or(&"?")); }
+            }
             for n in &prop.notes { println!("  note: {n}"); }
+            // --save <project-dir>: a project from it, with the cadpack copied in
+            if let Some(out) = get("--save") {
+                let out = PathBuf::from(out);
+                std::fs::create_dir_all(out.join("cad/pack"))?;
+                for f in ["parts.json", "meshes.bin"] { std::fs::copy(Path::new(&args[1]).join(f), out.join("cad/pack").join(f))?; }
+                let mut p = Project::new(out.file_name().map_or("robot".into(), |s| s.to_string_lossy().to_string()).as_str());
+                cad::propose::apply(&mut p.robot, &im.cadpack, &to, &prop, &lib);
+                p.robot.cad = Some(model::CadSource { kind: model::CadKind::Step { path: args[1].clone() }, cadpack: "cad/pack".into(), imported: "cli".into(), to_robot: to });
+                std::fs::write(out.join("robot.json"), p.to_json())?;
+                println!("saved {}", out.display());
+            }
         }
         Some("wheels") => {
             for w in &lib.wheels { println!("{:<28} {:<55} {:>4.0}A  k {:.2e} Pa/m", w.id, w.name, w.durometer_a, w.k_area()); }

@@ -129,9 +129,10 @@ pub fn from_mates(asm: &serde_json::Value, placed: &[Placed], to_robot: &Pose) -
         by_loose.entry(tail.iter().map(|s| strip_instance(s)).collect::<Vec<_>>().join("/")).or_default().push(&p.row.id);
     }
     let parts: Vec<&Vec<String>> = occs.iter().map(|(p, _)| p).filter(|p| p.last().is_some_and(|id| is_part(id))).collect();
+    let occ_pose: HashMap<Vec<String>, Pose> = occs.iter().cloned().collect();
     let mut occ_to_part: HashMap<Vec<String>, String> = HashMap::new();
     let mut used: HashMap<String, usize> = HashMap::new();
-    let mut unmatched = 0;
+    let mut unmatched_occ: Vec<&Vec<String>> = vec![];
     for p in &parts {
         let n = names(p);
         let loose = p.iter().map(|id| strip_instance(inst.get(id).and_then(|i| i["name"].as_str()).unwrap_or("?"))).collect::<Vec<_>>().join("/");
@@ -142,8 +143,18 @@ pub fn from_mates(asm: &serde_json::Value, placed: &[Placed], to_robot: &Pose) -
                 if let Some(id) = c.get(*k).or(c.last()) { occ_to_part.insert((*p).clone(), id.to_string()); }
                 *k += 1;
             }
-            None => unmatched += 1,
+            None => unmatched_occ.push(p),
         }
+    }
+    // names that differ (a STEP part named by its part number, Onshape's instance by its
+    // description): the same part sits in the same place in both, so match by placement
+    let taken: std::collections::HashSet<String> = occ_to_part.values().cloned().collect();
+    let mut free: Vec<(&str, Pose)> = placed.iter().filter(|p| !taken.contains(&p.row.id)).map(|p| (p.row.id.as_str(), p.row.pose())).collect();
+    let mut unmatched = 0;
+    for p in unmatched_occ {
+        let Some(t) = occ_pose.get(p) else { unmatched += 1; continue };
+        let hit = free.iter().position(|(_, q)| len(sub(q.pos, t.pos)) < 2e-4 && quat_angle(q.quat, t.quat) < 2e-3);
+        match hit { Some(i) => { occ_to_part.insert(p.clone(), free[i].0.to_string()); free.remove(i); } None => unmatched += 1 }
     }
     // union-find over occurrence paths
     let mut parent: HashMap<Vec<String>, Vec<String>> = HashMap::new();
@@ -160,7 +171,6 @@ pub fn from_mates(asm: &serde_json::Value, placed: &[Placed], to_robot: &Pose) -
         if ra != rb { parent.insert(ra, rb); }
     }
     let leaves = |prefix: &[String]| -> Vec<Vec<String>> { parts.iter().filter(|p| p.len() >= prefix.len() && p[..prefix.len()] == *prefix).map(|p| (*p).clone()).collect() };
-    let occ_pose: HashMap<Vec<String>, Pose> = occs.iter().cloned().collect();
     let mut owners: Vec<(Vec<String>, &serde_json::Value)> = vec![(vec![], root)];
     for (path, _) in &occs {
         if let Some(i) = path.last().and_then(|id| inst.get(id)) {
@@ -253,17 +263,121 @@ pub fn from_mates(asm: &serde_json::Value, placed: &[Placed], to_robot: &Pose) -
         joints.push(JointProp { name: format!("{} ({})", links[c].name, name), kind: jk, parent: p, child: c, anchor, axis: norm(axis), range, source: format!("Onshape mate '{name}'"), accepted: true });
     }
     let mut notes = vec![];
-    if unmatched > 0 { notes.push(format!("{unmatched} parts in the mates weren't found in the STEP by name")); }
+    let (links, joints, n) = tidy(links, joints, placed);
+    notes.extend(n);
+    if unmatched > 0 { notes.push(format!("{unmatched} parts in the mates weren't found in the STEP")); }
     if loose > 0 { notes.push(format!("{loose} parts nobody mated joined the nearest link in their sub-assembly")); }
     Ok((links, joints, notes))
+}
+
+pub const STEERING: &str = "Swerve steering";
+
+/// Joints that aren't mechanisms: a few parts turning on a shaft (a roller, a pulley, an idler)
+/// rides with its parent, and four upright hinges in the drivetrain are its swerve modules'
+/// steering, which the drivetrain model stands in for. Their links merge into their parents.
+pub fn tidy(mut links: Vec<LinkProp>, joints: Vec<JointProp>, placed: &[Placed]) -> (Vec<LinkProp>, Vec<JointProp>, Vec<String>) {
+    let solid = |l: &LinkProp| l.parts.iter().filter(|p| placed.iter().any(|x| &x.row.id == *p && !x.hardware)).count();
+    if std::env::var("FPS_DEBUG_TIDY").is_ok() {
+        for j in &joints { eprintln!("in: {} {:?} parent {} ({} solid) child {} ({} solid) axis {:?} at {:?}", j.name, j.kind, j.parent, solid(&links[j.parent]), j.child, solid(&links[j.child]), j.axis.map(|x| (x * 100.0).round() / 100.0), j.anchor.map(|x| (x * 1000.0).round() / 1000.0)); }
+    }
+    let mut merge_into: Vec<Option<usize>> = vec![None; links.len()];
+    let mut notes = vec![];
+    // swerve steering: upright hinges low in the robot, on the chassis
+    let steering: Vec<usize> = joints.iter().enumerate().filter(|(_, j)| j.kind == JointKind::Hinge && j.axis[2].abs() > 0.95 && j.parent == 0 && j.anchor[2] < 0.25 && solid(&links[j.child]) < 80).map(|(i, _)| i).collect();
+    let steering = if steering.len() >= 3 { steering } else { vec![] };
+    // something spinning on its own axis (a roller, a pulley, an idler) stays close to it; an arm
+    // reaches away from its pivot
+    let reach = |l: &LinkProp, j: &JointProp| -> f64 {
+        let mut r: f64 = 0.0;
+        for p in placed.iter().filter(|x| !x.hardware && l.parts.contains(&x.row.id)) {
+            for i in 0..8 {
+                let c = [p.bbox[i & 1][0], p.bbox[(i >> 1) & 1][1], p.bbox[(i >> 2) & 1][2]];
+                let d = sub(c, j.anchor);
+                r = r.max(len(sub(d, scale(j.axis, dot(d, j.axis)))));
+            }
+        }
+        r
+    };
+    for (i, j) in joints.iter().enumerate() {
+        let spins = j.kind == JointKind::Hinge && reach(&links[j.child], j) < 0.075;
+        if steering.contains(&i) || (spins && j.child != 0) { merge_into[j.child] = Some(j.parent); }
+    }
+    if !steering.is_empty() { notes.push(format!("{} upright hinges in the drivetrain taken as swerve steering", steering.len())); }
+    let small = merge_into.iter().filter(|m| m.is_some()).count() - steering.len();
+    if small > 0 { notes.push(format!("{small} small turning parts (rollers, pulleys) ride with what carries them")); }
+    // follow merges to their end
+    let root = |mut i: usize| { let mut n = 0; while let Some(p) = merge_into[i] { i = p; n += 1; if n > 64 { break; } } i };
+    for i in 0..links.len() { if merge_into[i].is_some() { let r = root(i); let parts = std::mem::take(&mut links[i].parts); links[r].parts.extend(parts); } }
+    let keep: Vec<usize> = (0..links.len()).filter(|i| merge_into[*i].is_none()).collect();
+    let map = |i: usize| keep.iter().position(|k| *k == root(i)).unwrap_or(0);
+    // steering axes are kept as markers (not joints) so the drivetrain gets the modules' places
+    let marks: Vec<JointProp> = steering.iter().map(|&i| JointProp { name: STEERING.into(), parent: 0, child: 0, accepted: false, ..joints[i].clone() }).collect();
+    let mut joints: Vec<JointProp> = joints.into_iter().enumerate().filter(|(i, j)| !steering.contains(i) && merge_into[j.child].is_none())
+        .map(|(_, mut j)| { j.parent = map(j.parent); j.child = map(j.child); j }).filter(|j| j.parent != j.child).collect();
+    let mut links: Vec<LinkProp> = keep.into_iter().map(|i| links[i].clone()).collect();
+    let orphans = attach_orphans(&mut links, &mut joints, placed);
+    if orphans > 0 { notes.push(format!("{orphans} groups of parts with no joint to the rest were fixed to the part they touch")); }
+    joints.extend(marks);
+    (links, joints, notes)
+}
+
+/// A link no joint reaches from the chassis (its mates to the rest were lost, or never made) is
+/// fixed to the link it touches, one from its own sub-assembly first; its own joints come with it.
+/// Returns how many were fixed.
+pub fn attach_orphans(links: &mut Vec<LinkProp>, joints: &mut Vec<JointProp>, placed: &[Placed]) -> usize {
+    let by_id: HashMap<&str, &Placed> = placed.iter().map(|p| (p.row.id.as_str(), p)).collect();
+    let boxes = |l: &LinkProp| -> Vec<[V3; 2]> {
+        let solid: Vec<[V3; 2]> = l.parts.iter().filter_map(|p| by_id.get(p.as_str())).filter(|p| !p.hardware).map(|p| p.bbox).collect();
+        if solid.is_empty() { l.parts.iter().filter_map(|p| by_id.get(p.as_str())).map(|p| p.bbox).collect() } else { solid }
+    };
+    let sub_of = |l: &LinkProp| -> Option<String> {
+        let mut n: HashMap<&str, usize> = HashMap::new();
+        for p in l.parts.iter().filter_map(|p| by_id.get(p.as_str())) { if let Some(s) = p.row.path.get(1) { *n.entry(s.as_str()).or_default() += 1; } }
+        n.into_iter().max_by_key(|x| x.1).map(|x| x.0.to_string())
+    };
+    let gap = |a: &[V3; 2], b: &[V3; 2]| -> f64 { (0..3).map(|k| (a[0][k] - b[1][k]).max(b[0][k] - a[1][k]).max(0.0)).map(|x| x * x).sum::<f64>().sqrt() };
+    let mut fixed = 0;
+    loop {
+        let mut reached = vec![false; links.len()];
+        if reached.is_empty() { return fixed; }
+        reached[0] = true;
+        let mut grew = true;
+        while grew {
+            grew = false;
+            for j in joints.iter() { if reached[j.parent] && !reached[j.child] { reached[j.child] = true; grew = true; } }
+        }
+        let Some(o) = (0..links.len()).filter(|i| !reached[*i]).max_by_key(|i| links[*i].parts.len()) else { return fixed };
+        let ob = boxes(&links[o]);
+        let os = sub_of(&links[o]);
+        let host = (0..links.len()).filter(|i| reached[*i]).map(|h| {
+            let hb = boxes(&links[h]);
+            let g = ob.iter().flat_map(|a| hb.iter().map(move |b| gap(a, b))).fold(f64::INFINITY, f64::min);
+            let other = if os.is_some() && sub_of(&links[h]) != os { 0.05 } else { 0.0 };
+            (h, g + other)
+        }).min_by(|a, b| a.1.total_cmp(&b.1)).map_or(0, |x| x.0);
+        let parts = std::mem::take(&mut links[o].parts);
+        links[host].parts.extend(parts);
+        links.remove(o);
+        let re = |i: usize| if i == o { if host > o { host - 1 } else { host } } else if i > o { i - 1 } else { i };
+        for j in joints.iter_mut() { j.parent = re(j.parent); j.child = re(j.child); }
+        joints.retain(|j| j.parent != j.child);
+        fixed += 1;
+    }
 }
 
 /// Links and joints from two poses of the same robot (D20 2): parts that made the same rigid move
 /// between them are a link; each link's move against its neighbour is a hinge or a slide. Port of
 /// spikes/pose_diff.py, with the parent chosen as the link nearest the joint's axis.
 pub fn from_poses(a: &[Placed], b: &[Placed]) -> (Vec<LinkProp>, Vec<JointProp>, Vec<String>) {
+    // the second pose may hold the robot one level down (a "Scoring Positions" assembly with the
+    // robot and a REEF in it): line it up on the first's top assembly, by name
+    let root = a.first().and_then(|p| p.row.path.first()).map(|s| strip_instance(s)).unwrap_or_default();
     let mut bm: HashMap<String, Vec<Pose>> = HashMap::new();
-    for p in b { bm.entry(strip_path(&p.row.path)).or_default().push(p.pose); }
+    for p in b {
+        let at = p.row.path.iter().position(|n| strip_instance(n) == root);
+        let key = match at { Some(i) => p.row.path[i + 1..].join("/"), None if p.row.path.first().map(|s| strip_instance(s)) == Some(root.clone()) => strip_path(&p.row.path), None => continue };
+        bm.entry(key).or_default().push(p.pose);
+    }
     let mut am: HashMap<String, Vec<(&str, Pose)>> = HashMap::new();
     for p in a { am.entry(strip_path(&p.row.path)).or_default().push((&p.row.id, p.pose)); }
     let same = |x: &Pose, y: &Pose| len(sub(x.pos, y.pos)) < 3e-4 && quat_angle(x.quat, y.quat) < 2e-3;
@@ -289,15 +403,24 @@ pub fn from_poses(a: &[Placed], b: &[Placed]) -> (Vec<LinkProp>, Vec<JointProp>,
     let base = big[0].0;
     let mut links: Vec<LinkProp> = big.iter().enumerate().map(|(i, g)| LinkProp { name: if i == 0 { "Chassis".into() } else { format!("Moving part {i}") }, parts: g.1.clone(), source: "two poses".into() }).collect();
     let bbox_of = |ids: &[String]| -> Vec<[V3; 2]> { a.iter().filter(|p| ids.contains(&p.row.id) && !p.hardware).map(|p| p.bbox).collect() };
+    // how far each link moved between the poses (its parts' centre): a link rides on one that
+    // moved less, so the chain builds outward from the base
+    let moved: Vec<f64> = big.iter().map(|g| { let c = bbox_center(&bbox_of(&g.1)); len(sub(base.inverse().mul(&g.0).apply(c), c)) }).collect();
     let mut joints = vec![];
     for (ci, g) in big.iter().enumerate().skip(1) {
-        // name it after its most common sub-assembly
+        // name it after its parts' most common sub-assembly, one level deeper where that tells
+        // links apart (three stages of one arm)
         let mut c: HashMap<String, usize> = HashMap::new();
-        for id in &g.1 { if let Some(p) = a.iter().find(|p| &p.row.id == id) { *c.entry(strip_instance(p.row.path.get(1).map(String::as_str).unwrap_or("?"))).or_default() += 1; } }
+        for id in &g.1 {
+            if let Some(p) = a.iter().find(|p| &p.row.id == id && !p.hardware) {
+                let n = if p.row.path.len() > 3 { p.row.path[2].as_str() } else { p.row.path.get(1).map(String::as_str).unwrap_or("?") };
+                *c.entry(strip_instance(n)).or_default() += 1;
+            }
+        }
         if let Some((n, _)) = c.into_iter().max_by_key(|x| x.1) { links[ci].name = n; }
         let mut best: Option<(f64, usize, JointKind, V3, V3, f64)> = None;
         for (pi, h) in big.iter().enumerate() {
-            if pi == ci { continue; }
+            if pi == ci || (pi != 0 && moved[pi] >= moved[ci] - 1e-4) { continue; }
             let rel = h.0.inverse().mul(&g.0);
             let (kind, axis, point, amount) = screw(&rel);
             if kind == JointKind::Fixed { continue; }
@@ -310,11 +433,46 @@ pub fn from_poses(a: &[Placed], b: &[Placed]) -> (Vec<LinkProp>, Vec<JointProp>,
         if let Some((_, pi, kind, axis, anchor, amount)) = best {
             let anchor = if kind == JointKind::Slide { bbox_center(&bbox_of(&g.1)) } else { anchor };
             let range = if amount >= 0.0 { [0.0, amount] } else { [amount, 0.0] };
-            joints.push(JointProp { name: format!("{} {}", links[ci].name, if kind == JointKind::Slide { "slide" } else { "pivot" }), kind, parent: pi, child: ci, anchor, axis: norm(base.rotate(axis)), range: Some(range), source: "two poses".into(), accepted: true });
+            // a few millimetres or degrees is a configuration difference, not a mechanism
+            let real = if kind == JointKind::Slide { amount.abs() > 0.012 } else { amount.abs() > 0.05 };
+            joints.push(JointProp { name: format!("{} {}", links[ci].name, if kind == JointKind::Slide { "slide" } else { "pivot" }), kind, parent: pi, child: ci, anchor, axis: norm(base.rotate(axis)), range: Some(range), source: "two poses".into(), accepted: real });
         }
+    }
+    // a link whose move was too small to be a mechanism goes back into the link it was on
+    let mut merged = vec![false; links.len()];
+    for j in joints.iter().filter(|j| !j.accepted) {
+        let parts = std::mem::take(&mut links[j.child].parts);
+        links[j.parent].parts.extend(parts);
+        merged[j.child] = true;
+    }
+    if merged.iter().any(|m| *m) {
+        let map: Vec<Option<usize>> = { let mut n = 0; merged.iter().map(|m| if *m { None } else { n += 1; Some(n - 1) }).collect() };
+        joints = joints.into_iter().filter(|j| j.accepted).map(|mut j| { j.parent = map[j.parent].unwrap_or(0); j.child = map[j.child].unwrap_or(0); j }).collect();
+        links = links.into_iter().enumerate().filter(|(i, _)| !merged[*i]).map(|(_, l)| l).collect();
     }
     let notes = vec!["Joints seen between the two poses only; a joint that didn't move between them isn't found, and the travel seen is a minimum".into()];
     (links, joints, notes)
+}
+
+/// A wheel family from a part's name.
+fn family(name: &str) -> Option<&'static str> {
+    let n = name.to_lowercase();
+    [("compliant", "compliant"), ("flex wheel", "flex"), ("omni", "omni"), ("mecanum", "mecanum"), ("stealth", "stealth"), ("silicone", "silicone"),
+     ("urethane", "urethane"), ("nitrile", "nitrile"), ("tread", "tread"), ("colson", "colson"), ("grip tape", "grip")]
+        .iter().find(|(k, _)| n.contains(k)).map(|(_, f)| *f)
+}
+
+/// A durometer written in a part's name ("45A", "60 A").
+fn durometer(name: &str) -> Option<f64> {
+    let b = name.as_bytes();
+    for i in 0..b.len().saturating_sub(2) {
+        if b[i].is_ascii_digit() && b[i + 1].is_ascii_digit() && (i == 0 || !b[i - 1].is_ascii_digit()) {
+            let rest = &name[i + 2..];
+            let rest = rest.trim_start();
+            if rest.starts_with('A') && rest[1..].chars().next().is_none_or(|c| !c.is_alphanumeric()) { return name[i..i + 2].parse().ok(); }
+        }
+    }
+    None
 }
 
 fn strip_path(p: &[String]) -> String { p.iter().skip(1).cloned().collect::<Vec<_>>().join("/") }
@@ -356,13 +514,27 @@ pub fn rollers(cp: &Cadpack, placed: &[Placed], links: &[LinkProp], lib: &Librar
     let mut notes = vec![];
     for p in placed {
         if p.hardware { continue; }
-        let names = [p.row.name.clone(), p.row.path.join(" "), bom.get(&p.row.name).map(|b| format!("{} {}", b.name, b.part_number.clone().unwrap_or_default())).unwrap_or_default()];
-        let Some(w) = names.iter().find_map(|n| lib.match_wheel(n)) else { continue };
+        let names = [p.row.name.clone(), bom.get(&p.row.name).map(|b| format!("{} {}", b.name, b.part_number.clone().unwrap_or_default())).unwrap_or_default()];
+        let named = names.iter().find_map(|n| lib.match_wheel(n));
+        let fam = names.iter().find_map(|n| family(n));
+        if named.is_none() && fam.is_none() { continue; }
         let axes = cp.axes(p.row);
-        let want = w.radius();
-        let Some((ax, r)) = axes.iter().filter_map(|a| a.r.iter().cloned().fold(None, |m: Option<f64>, x| Some(m.map_or(x, |m| m.max(x)))).map(|r| (a, r))).filter(|(_, r)| (r / want - 1.0).abs() < 0.25).max_by(|a, b| a.1.partial_cmp(&b.1).unwrap()) else {
-            notes.push(format!("{}: named like {} but no cylinder of that size", p.row.name, w.name));
+        // its biggest round face is its tread
+        let Some((ax, r)) = axes.iter().filter_map(|a| a.r.iter().cloned().fold(None, |m: Option<f64>, x| Some(m.map_or(x, |m| m.max(x)))).map(|r| (a, r))).filter(|(_, r)| *r > 0.008 && *r < 0.11).max_by(|a, b| a.1.partial_cmp(&b.1).unwrap()) else {
+            notes.push(format!("{}: named like a wheel but has no round face to roll on", p.row.name));
             continue;
+        };
+        // the library wheel nearest in size and hardness, of its family
+        let d_in = 2.0 * r / library::IN;
+        let duro = names.iter().find_map(|n| durometer(n));
+        let w = match (named, fam) {
+            (Some(w), _) if (w.diameter_in - d_in).abs() < 0.4 && duro.is_none_or(|d| (w.durometer_a - d).abs() < 6.0) => w,
+            (_, Some(f)) => match lib.wheels.iter().filter(|w| w.name.to_lowercase().contains(f) || w.id.contains(f)).min_by(|a, b| {
+                let sa = (a.diameter_in - d_in).abs() + duro.map_or(0.0, |d| 0.03 * (a.durometer_a - d).abs());
+                let sb = (b.diameter_in - d_in).abs() + duro.map_or(0.0, |d| 0.03 * (b.durometer_a - d).abs());
+                sa.partial_cmp(&sb).unwrap() }) { Some(w) => w, None => match named { Some(w) => w, None => continue } },
+            (Some(w), None) => w,
+            (None, None) => continue,
         };
         let to = |v: V3| v; // axes are in the CAD frame; placed poses are robot frame: re-derive below
         let _ = to;
@@ -404,12 +576,34 @@ pub fn drivetrain(rollers: &mut Vec<RollerProp>, placed: &[Placed], lib: &Librar
 
 /// Masses: the BOM's where it has one, else the part's volume times its material's density
 /// (the BOM's material, then the name, then aluminium).
+/// A part that only marks space (a clearance or keep-out box, a frame-perimeter envelope): it
+/// weighs nothing.
+pub const TOO_HEAVY: f64 = 10.0;
+
+pub fn is_reference(name: &str) -> bool {
+    let n = name.to_lowercase();
+    ["clearance", "keep out", "keepout", "keep-out", "envelope", "reference", "extension limit", "frame perimeter", "bounding box"].iter().any(|k| n.contains(k))
+}
+
+/// Each part's material and mass: the BOM's mass when it has one, else volume times the density of
+/// its material (aluminium when unknown). A solid can't hold more than its box, so a broken solid
+/// whose volume comes out bigger is held to half its box.
 pub fn masses(placed: &[Placed], lib: &Library, bom: &HashMap<String, BomRow>) -> HashMap<String, (Option<String>, f64)> {
     placed.iter().map(|p| {
         let row = bom.get(&p.row.name);
         let mat = row.and_then(|b| b.material.as_ref()).and_then(|m| lib.match_material(m)).or_else(|| lib.match_material(&p.row.name)).map(|m| m.id.clone());
         let density = mat.as_ref().and_then(|m| lib.material(m)).map_or(2700.0, |m| m.density);
-        let mass = row.and_then(|b| b.mass).unwrap_or(p.volume * density);
+        let d = sub(p.bbox[1], p.bbox[0]);
+        let boxed = (d[0] * d[1] * d[2]).abs();
+        let volume = if p.volume.is_finite() && p.volume > 0.0 && p.volume <= boxed * 1.01 { p.volume } else { 0.5 * boxed };
+        // no single part of a robot weighs 10 kg without the BOM saying so: it's a reference body
+        // (a camera's field of view, a clearance volume) that came along in the part
+        let mass = match row.and_then(|b| b.mass) {
+            _ if is_reference(&p.row.name) => 0.0,
+            Some(m) => m,
+            None if volume * density > TOO_HEAVY => 0.0,
+            None => volume * density,
+        };
         (p.row.id.clone(), (mat, mass))
     }).collect()
 }
@@ -419,11 +613,21 @@ pub fn propose(cp: &Cadpack, to_robot: &Pose, lib: &Library, bom: &HashMap<Strin
     let placed = place(cp, to_robot);
     let (mut rollers, rn) = rollers(cp, &placed, &links, lib, bom);
     notes.extend(rn);
-    let (module, module_positions) = drivetrain(&mut rollers, &placed, lib);
+    let (module, mut module_positions) = drivetrain(&mut rollers, &placed, lib);
+    // swerve steering axes from the mates give the modules' places when the treads didn't
+    let steer: Vec<[f64; 2]> = joints.iter().filter(|j| j.name == STEERING).map(|j| [j.anchor[0], j.anchor[1]]).collect();
+    let joints: Vec<JointProp> = joints.into_iter().filter(|j| j.name != STEERING).collect();
+    if module_positions.is_empty() && steer.len() >= 3 { module_positions = steer; }
     // a motor is named like one and sized like one (a swerve module's parts often carry the motor's name)
     let motor_sized = |p: &Placed| { let d = sub(p.bbox[1], p.bbox[0]); let (lo, hi) = (d.iter().cloned().fold(f64::INFINITY, f64::min), d.iter().cloned().fold(0.0, f64::max)); p.volume > 3e-5 && lo > 0.025 && hi < 0.2 };
     let motors = placed.iter().filter(|p| !p.hardware && motor_sized(p)).filter_map(|p| lib.match_motor(&p.row.name).or_else(|| bom.get(&p.row.name).and_then(|b| lib.match_motor(&b.name))).map(|m| (p.row.id.clone(), m.id.clone()))).collect();
-    Proposal { masses: masses(&placed, lib, bom), links, joints, rollers, motors, module, module_positions, notes, links_from: from.into() }
+    let masses = masses(&placed, lib, bom);
+    let ignored: Vec<&str> = placed.iter().filter(|p| !p.hardware && masses.get(&p.row.id).is_some_and(|m| m.1 == 0.0)).map(|p| p.row.name.as_str()).collect();
+    if !ignored.is_empty() {
+        let mut names: Vec<&str> = ignored.clone(); names.sort(); names.dedup();
+        notes.push(format!("{} parts count as reference only (no mass, no collision): {}. Give one a mass in its inspector if it's real.", ignored.len(), names.iter().take(4).cloned().collect::<Vec<_>>().join(", ")));
+    }
+    Proposal { masses, links, joints, rollers, motors, module, module_positions, notes, links_from: from.into() }
 }
 
 /// Makes the robot from an accepted proposal (D20): parts, links with their masses and collision
@@ -440,7 +644,7 @@ pub fn apply(r: &mut Robot, cp: &Cadpack, to_robot: &Pose, prop: &Proposal, lib:
     r.joints.clear(); r.drives.clear(); r.shafts.clear(); r.rollers.clear(); r.mechanisms.clear(); r.controls = Controls::default(); r.sensors.clear();
     let mut ids = vec![CHASSIS];
     for (i, lp) in prop.links.iter().enumerate() {
-        let shapes = collision_boxes(&lp.parts, &by_id);
+        let shapes = collision_boxes(&lp.parts, &by_id, &prop.masses);
         let mass: f64 = lp.parts.iter().filter_map(|p| prop.masses.get(p).map(|m| m.1)).sum();
         if i == 0 {
             let c = r.link_mut(CHASSIS).unwrap();
@@ -521,8 +725,9 @@ pub fn apply(r: &mut Robot, cp: &Cadpack, to_robot: &Pose, prop: &Proposal, lib:
     for j in r.joints.clone() {
         let Some(d) = r.drives.iter().find(|d| matches!(d.target, DriveTarget::Joint { joint, .. } if joint == j.id)).map(|d| d.id) else { continue };
         let pid = r.id();
-        let hi = j.range.map_or(1.0, |x| x[1]);
-        r.controls.presets.push(Preset { id: pid, name: format!("{} out", j.name), targets: vec![PresetTarget { drive: d, value: hi }] });
+        // "out" is the end of its travel farther from where the CAD has it
+        let far = j.range.map_or(1.0, |[lo, hi]| if lo.abs() > hi.abs() { lo } else { hi });
+        r.controls.presets.push(Preset { id: pid, name: format!("{} out", j.name), targets: vec![PresetTarget { drive: d, value: far }] });
         let pid2 = r.id();
         r.controls.presets.push(Preset { id: pid2, name: format!("{} home", j.name), targets: vec![PresetTarget { drive: d, value: 0.0 }] });
     }
@@ -532,13 +737,11 @@ pub fn apply(r: &mut Robot, cp: &Cadpack, to_robot: &Pose, prop: &Proposal, lib:
 fn palette(i: usize) -> String { ["#9aa3ad", "#4f8fd6", "#e2a03f", "#3fae6a", "#d65a8a", "#9b6fd0", "#5aa7b3", "#c94f4f"][i % 8].into() }
 
 /// Collision for a link (D7 "Simple"): an oriented box for each of its biggest parts, at most 24.
-pub fn collision_boxes(parts: &[String], by_id: &HashMap<&str, &Placed>) -> Vec<Shape> {
-    let mut ps: Vec<&&Placed> = parts.iter().filter_map(|p| by_id.get(p.as_str())).filter(|p| !p.hardware && p.volume > 0.0).collect();
+pub fn collision_boxes(parts: &[String], by_id: &HashMap<&str, &Placed>, masses: &HashMap<String, (Option<String>, f64)>) -> Vec<Shape> {
+    let mut ps: Vec<&&Placed> = parts.iter().filter_map(|p| by_id.get(p.as_str())).filter(|p| !p.hardware && p.volume > 0.0 && masses.get(&p.row.id).is_none_or(|m| m.1 > 0.0)).collect();
     ps.sort_by(|a, b| b.volume.partial_cmp(&a.volume).unwrap());
     ps.into_iter().take(24).filter_map(|p| {
         // the part's own bounding box, turned with it
-        let s = &p.row;
-        let _ = s;
         let lo = p.bbox[0]; let hi = p.bbox[1];
         let size = sub(hi, lo);
         if size.iter().any(|x| *x < 1e-4) { return None; }
@@ -571,4 +774,66 @@ pub fn reattach(r: &mut Robot, new_parts: &[Part]) -> Vec<String> {
     r.parts = new_parts.to_vec();
     lost.sort(); lost.dedup();
     lost
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::cadpack::PartRow;
+
+    fn row(id: &str, sub: &str) -> PartRow { PartRow { id: id.into(), name: id.into(), path: vec!["Robot".into(), sub.into(), id.into()], shape: 0, m: vec![], color: None } }
+    fn placed<'a>(r: &'a PartRow, lo: V3, hi: V3) -> Placed<'a> {
+        let d = sub(hi, lo);
+        Placed { row: r, pose: Pose::default(), volume: d[0] * d[1] * d[2] * 0.5, com: lerp(lo, hi, 0.5), bbox: [lo, hi], hardware: false }
+    }
+    fn link(name: &str, parts: &[&str]) -> LinkProp { LinkProp { name: name.into(), parts: parts.iter().map(|s| s.to_string()).collect(), source: String::new() } }
+    fn hinge(name: &str, parent: usize, child: usize, anchor: V3, axis: V3, range: Option<[f64; 2]>) -> JointProp {
+        JointProp { name: name.into(), kind: JointKind::Hinge, parent, child, anchor, axis, range, source: String::new(), accepted: true }
+    }
+
+    #[test]
+    fn tidy_tells_steering_rollers_arms_and_turrets_apart() {
+        let rows: Vec<PartRow> = ["frame", "m0", "m1", "m2", "m3", "roller", "arm", "turret"].iter().map(|n| row(n, "Sub")).collect();
+        let mut p = vec![placed(&rows[0], [-0.35, -0.35, 0.05], [0.35, 0.35, 0.1])];
+        let corners = [[0.25, 0.25], [0.25, -0.25], [-0.25, 0.25], [-0.25, -0.25]];
+        for (i, c) in corners.iter().enumerate() { p.push(placed(&rows[1 + i], [c[0] - 0.05, c[1] - 0.05, 0.0], [c[0] + 0.05, c[1] + 0.05, 0.1])); }
+        p.push(placed(&rows[5], [0.3, -0.3, 0.2], [0.35, 0.3, 0.25]));
+        p.push(placed(&rows[6], [0.0, -0.05, 0.3], [0.5, 0.05, 0.35]));
+        p.push(placed(&rows[7], [-0.2, -0.2, 0.35], [0.2, 0.2, 0.5]));
+        let links: Vec<LinkProp> = ["frame", "m0", "m1", "m2", "m3", "roller", "arm", "turret"].iter().map(|n| link(n, &[n])).collect();
+        let mut joints: Vec<JointProp> = corners.iter().enumerate().map(|(i, c)| hinge("steer", 0, 1 + i, [c[0], c[1], 0.05], [0.0, 0.0, 1.0], None)).collect();
+        joints.push(hinge("roller", 0, 5, [0.325, 0.0, 0.225], [0.0, 1.0, 0.0], None));
+        joints.push(hinge("arm", 0, 6, [0.0, 0.0, 0.325], [0.0, 1.0, 0.0], Some([0.0, 1.5])));
+        joints.push(hinge("turret", 0, 7, [0.0, 0.0, 0.35], [0.0, 0.0, 1.0], None));
+        let (l, j, _) = tidy(links, joints, &p);
+        let names: Vec<&str> = l.iter().map(|l| l.name.as_str()).collect();
+        assert_eq!(names, ["frame", "arm", "turret"], "steering and the roller merge; the arm and the turret stay");
+        assert_eq!(j.iter().filter(|j| j.name == STEERING).count(), 4);
+        assert_eq!(j.iter().filter(|j| j.name != STEERING).count(), 2);
+    }
+
+    #[test]
+    fn loose_groups_join_what_they_touch() {
+        let rows = [row("frame", "Drive"), row("arm", "Arm"), row("bracket", "Arm"), row("far", "Drive")];
+        let p = vec![placed(&rows[0], [-0.3, -0.3, 0.0], [0.3, 0.3, 0.1]), placed(&rows[1], [0.0, 0.0, 0.3], [0.5, 0.05, 0.35]),
+            placed(&rows[2], [0.45, 0.0, 0.35], [0.5, 0.05, 0.4]), placed(&rows[3], [-0.3, -0.3, 0.1], [-0.2, -0.2, 0.2])];
+        let mut links = vec![link("frame", &["frame"]), link("arm", &["arm"]), link("bracket", &["bracket"]), link("far", &["far"])];
+        let mut joints = vec![hinge("arm", 0, 1, [0.0, 0.0, 0.3], [0.0, 1.0, 0.0], Some([0.0, 1.0]))];
+        assert_eq!(attach_orphans(&mut links, &mut joints, &p), 2);
+        assert_eq!(links.len(), 2);
+        assert!(links[1].parts.contains(&"bracket".to_string()), "the bracket touching the arm rides on the arm");
+        assert!(links[0].parts.contains(&"far".to_string()));
+        assert_eq!((joints[0].parent, joints[0].child), (0, 1));
+    }
+
+    #[test]
+    fn reference_bodies_and_broken_solids_weigh_nothing() {
+        let lib = Library::builtin();
+        let rows = [row("Clearance Box", "R"), row("USB Camera", "R"), row("Plate", "R")];
+        let p = vec![placed(&rows[0], [0.0; 3], [0.5, 0.5, 0.5]), placed(&rows[1], [0.0; 3], [0.8, 0.6, 0.6]), placed(&rows[2], [0.0; 3], [0.3, 0.3, 0.005])];
+        let m = masses(&p, &lib, &HashMap::new());
+        assert_eq!(m["Clearance Box"].1, 0.0);
+        assert_eq!(m["USB Camera"].1, 0.0);
+        assert!((m["Plate"].1 - 0.3 * 0.3 * 0.005 * 0.5 * 2700.0).abs() < 1e-9);
+    }
 }

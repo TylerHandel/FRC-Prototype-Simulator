@@ -54,6 +54,7 @@ pub struct Sim { pub tx: Sender<Msg>, pub shared: Arc<Mutex<Shared>> }
 impl Sim {
     pub fn send(&self, m: Msg) { let _ = self.tx.send(m); }
     pub fn snap(&self) -> Option<Snapshot> { self.shared.lock().ok().and_then(|s| s.snap.clone()) }
+    pub fn playing(&self) -> bool { self.shared.lock().is_ok_and(|s| s.playing) }
 }
 
 pub struct SimPlugin;

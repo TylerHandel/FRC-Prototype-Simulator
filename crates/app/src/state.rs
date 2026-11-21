@@ -37,7 +37,7 @@ impl Workspace {
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub enum Selection { None, Robot, Drivetrain, Electrical, Controls, Mechanism(Id), Link(Id), Joint(Id), Drive(Id), Roller(Id), Part(String) }
+pub enum Selection { Robot, Drivetrain, Electrical, Controls, Mechanism(Id), Link(Id), Joint(Id), Drive(Id), Roller(Id), Part(String) }
 
 /// The Bench's comparison runs, worked out off the interface thread.
 #[derive(Default)]

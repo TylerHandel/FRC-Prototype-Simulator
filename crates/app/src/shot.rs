@@ -25,6 +25,12 @@ impl Plugin for ShotPlugin {
 struct Shot { path: String, frames: u32, taken: bool }
 
 fn open(mut st: ResMut<AppState>) {
+    if let Ok(dir) = std::env::var("FPS_SHOT_PROJECT") {
+        st.open(dir.into());
+        st.ws = std::env::var("FPS_SHOT_WS").map(|w| Workspace::from_key(&w)).unwrap_or(Workspace::Build);
+        if st.ws == Workspace::Rig { st.import.stage = crate::ui::rig::Stage::Done; }
+        return;
+    }
     let n: usize = std::env::var("FPS_SHOT_STARTER").ok().and_then(|s| s.parse().ok()).unwrap_or(0);
     let starters = crate::projects::starters();
     let (_, _, p) = starters.into_iter().nth(n).expect("no such starter");

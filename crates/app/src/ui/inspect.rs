@@ -6,12 +6,12 @@ use model::templates::{Params, Rigging, Template};
 use model::*;
 
 use super::widgets::*;
-use crate::simrun::Sim;
+use crate::simrun::{Msg, Sim};
 use crate::state::{AppState, Selection};
 
 pub fn show(ui: &mut Ui, st: &mut AppState, sim: &Sim) {
     match st.sel.clone() {
-        Selection::None | Selection::Robot => robot(ui, st),
+        Selection::Robot => robot(ui, st),
         Selection::Drivetrain => drivetrain(ui, st),
         Selection::Electrical => electrical(ui, st),
         Selection::Controls => controls(ui, st),
@@ -346,6 +346,7 @@ fn mechanism(ui: &mut Ui, st: &mut AppState, sim: &Sim, id: Id) {
     for x in rollers {
         if ui.selectable_label(false, format!("{}: {}", x.name, st.lib.wheel(&x.wheel).map_or(x.wheel.clone(), |w| w.name.clone()))).clicked() { st.sel = Selection::Roller(x.id); }
     }
+    if !m.holders.is_empty() && sim.playing() && ui.button("Let go of what it holds").clicked() { sim.send(Msg::Release(id)); }
     ui.add_space(8.0);
     ui.horizontal(|ui| {
         if ui.button("Try it on the Bench").on_hover_text("Send pieces at this mechanism and measure").clicked() {
@@ -357,7 +358,6 @@ fn mechanism(ui: &mut Ui, st: &mut AppState, sim: &Sim, id: Id) {
             st.sel = Selection::Robot;
         }
     });
-    let _ = sim;
 }
 
 fn control_name(c: &Control) -> &'static str {
@@ -412,11 +412,46 @@ fn drive(ui: &mut Ui, st: &mut AppState, sim: &Sim, id: Id) {
             if let Some(c) = w.gains_from_model(id) { d.control = c; ch = true; }
         }
     }
-    if ch { st.doc.edit(&format!("~{}", d.name), |p| if let Some(x) = p.robot.drive_mut(id) { *x = d; }); }
+    if ch { st.doc.edit(&format!("~{}", d.name), |p| if let Some(x) = p.robot.drive_mut(id) { *x = d.clone(); }); }
+    try_drive(ui, st, sim, &d);
     // live numbers
     if let Some(s) = sim.snap().and_then(|s| s.drives.iter().find(|x| x.id == id).copied()) {
         heading(ui, "Now");
         ui.label(format!("{:.1} V, {:.1} A stator, {:.1} A from the battery{}", s.volts, s.current, s.supply, if s.limited { " (current-limited)" } else { "" }));
+    }
+}
+
+/// Run one drive by hand while the sim plays: hold a button to run it, or pick where a joint goes.
+fn try_drive(ui: &mut Ui, st: &AppState, sim: &Sim, d: &Drive) {
+    heading(ui, "Try it");
+    if !sim.playing() { hint(ui, "Press Play (Space) first."); }
+    // what "run" means: volts, or half the output's free speed for a speed loop
+    let run = match d.control {
+        Control::Velocity { .. } => st.lib.motor(&d.motor).map_or(10.0, |m| m.free_rpm * std::f64::consts::TAU / 60.0 / d.ratio.max(1e-6) * 0.5),
+        _ => 6.0,
+    };
+    let what = if matches!(d.control, Control::Velocity { .. }) { "half speed".to_string() } else { "6 V".to_string() };
+    ui.horizontal(|ui| {
+        for (label, v) in [(format!("Hold: back ({what})"), -run), (format!("Hold: forward ({what})"), run)] {
+            let b = ui.add(egui::Button::new(label).sense(egui::Sense::drag()));
+            if b.drag_started() { sim.send(Msg::Run(d.id, Some(v))); }
+            if b.drag_stopped() { sim.send(Msg::Run(d.id, None)); }
+        }
+    });
+    let DriveTarget::Joint { joint, .. } = d.target else { return };
+    if matches!(d.control, Control::Voltage | Control::Velocity { .. }) { return; }
+    let Some(j) = st.project().robot.joint(joint) else { return };
+    let Some([lo, hi]) = j.range else { return };
+    let id = ui.make_persistent_id(("goto", d.id));
+    let mut v: f64 = ui.data_mut(|m| m.get_temp(id)).unwrap_or(j.initial);
+    let slide = j.kind == JointKind::Slide;
+    let shown = |x: f64| if slide { x } else { x.to_degrees() };
+    let mut t = shown(v);
+    let r = row(ui, "Go to", "Moves the joint with its controller", |ui| ui.add(egui::Slider::new(&mut t, shown(lo)..=shown(hi)).suffix(if slide { " m" } else { " deg" })));
+    if r.changed() {
+        v = if slide { t } else { t.to_radians() };
+        ui.data_mut(|m| m.insert_temp(id, v));
+        sim.send(Msg::Target(d.id, v));
     }
 }
 
