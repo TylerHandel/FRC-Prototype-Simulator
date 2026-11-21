@@ -29,7 +29,7 @@ the way `rebuilt-sim-native/PLAN.md` does.
    Concept robots, CAD rigging, and making a game pack. AI matches and running real robot code come
    after.
 
-## Progress (2026-11-21, M5 added the same day)
+## Progress (2026-11-21: M0 to M6)
 
 Built in one pass through M0 to M4. Every gate that can run without a person runs in CI on Linux
 and on Windows. What each milestone has, and what is left:
@@ -42,7 +42,7 @@ and on Windows. What each milestone has, and what is left:
 | M3 | Done | Laying a template over CAD; the 30-minute rigging test and 60 fps check (need a person and a GPU) |
 | M4 | Done, simplified field | The field made with the M3 tools instead of a script; energy per cycle in the log |
 | M5 | Done, gate met for CORAL | ALGAE on Spectre, wheels on real contact, six robots at once (with M7), the footage comparison (needs a person) |
-| M6 | Not started | The Bench already has a one-number sweep, and Analyze exports CSV |
+| M6 | Done | Wheel stiffness from press tests (M8) will sharpen the sweeps' absolute numbers |
 
 **Measured at the gates** (`cargo test -p sim --release --test gates -- --nocapture`):
 
@@ -89,6 +89,24 @@ and on Windows. What each milestone has, and what is left:
 - Two things a real driver does that the script had to learn: raise before closing on the REEF
   (the end effector sweeps forward as it rises), and take the last half metre slowly (the CORAL is
   held by the wheels' edges in this design, about 40 N of squeeze).
+
+**M6, measured:**
+
+- Sweeps on the Bench: up to three of speed, roller volts, current limit, piece turn, roller
+  height and wheel; every combination's throws in parallel; a table, a heat map of any outcome
+  over the first two, and CSV. **Gate:** a 3 x 3 x 3 sweep of squeeze, speed and limit, 20 random
+  approaches each (540 throws), takes 3.5 s on 4 threads (allowed: 2 minutes); lower rollers
+  squeeze harder (206, 308, 398 N peak).
+- Game packs from folders ("Game packs" beside the projects), each with its problems listed in
+  plain words; a new pack from a working template; `mirror`, `grid`, a goal's `exit` and a
+  feeder's `stock` so a game is written once by hand.
+- **Gate:** `docs/KICKOFF.md`, then the REBUILT (2026) pack written by following it, data only,
+  from rebuilt-sim-2026's field dimensions. It reads with nothing to fix; a FUEL dropped in a HUB
+  scores and comes back out; 504 FUEL on the field run at 2.4 times real time.
+- Runs kept and compared in Analyze: plots overlaid, numbers side by side.
+- Not modelled in game packs yet: points that change during a match (REBUILT's HUB shifts),
+  climbing, and BUMPs as real ramps (the drivetrain drives on flat carpet, so they're drawn and
+  driven through).
 
 **M5, not met as written:**
 
