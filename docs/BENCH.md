@@ -24,9 +24,18 @@ harder (more friction to overcome). The Bench shows where that stops being worth
 
 ## Sweeps
 
-Pick a number (driving speed, roller volts, stator limit, how the piece is turned, roller height),
-type the values to try, and how many throws each. Each throw takes a random turn and offset within the
-"give or take" you set. The table shows how many came in at each value.
+Pick up to three things to vary: driving speed, roller volts, stator limit, how the piece is
+turned, roller height, or the wheel (the ones you picked under **Compare wheels**). Type the values
+to try for each, and how many throws each combination gets. Every combination runs, all at once.
+Each throw takes a random turn and offset within the "give or take" you set.
+
+- The table (right) shows each combination: how many came in, how long they took, the mean
+  current while touching, and the peak squeeze.
+- The heat map (bottom) shows any of those over the first two things you varied, averaged over the
+  third. Pick the outcome above it.
+- **Save as CSV** writes the table to the project's `runs` folder, for a spreadsheet.
+
+A 3 by 3 by 3 sweep with 20 throws each (540 throws) takes a few seconds.
 
 ## How much to trust the numbers
 
