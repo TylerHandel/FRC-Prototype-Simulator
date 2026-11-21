@@ -424,8 +424,9 @@ pub fn from_poses(a: &[Placed], b: &[Placed]) -> (Vec<LinkProp>, Vec<JointProp>,
             let rel = h.0.inverse().mul(&g.0);
             let (kind, axis, point, amount) = screw(&rel);
             if kind == JointKind::Fixed { continue; }
-            // the parent's parts nearest the axis point (in the first pose)
-            let anchor = if kind == JointKind::Hinge { h.0.inverse().apply(point) } else { [0.0; 3] };
+            // `rel` (the child's move with the parent's undone) works in the first pose's frame, so
+            // its axis point is already where the joint is in the first pose
+            let anchor = if kind == JointKind::Hinge { point } else { [0.0; 3] };
             let near = bbox_of(&h.1).iter().map(|bb| dist_box(anchor, bb)).fold(f64::INFINITY, f64::min);
             let score = if kind == JointKind::Slide { amount * 0.01 } else { near } + if pi == 0 { 0.0 } else { 0.001 };
             if best.is_none_or(|b| score < b.0) { best = Some((score, pi, kind, axis, anchor, amount)); }
@@ -435,7 +436,7 @@ pub fn from_poses(a: &[Placed], b: &[Placed]) -> (Vec<LinkProp>, Vec<JointProp>,
             let range = if amount >= 0.0 { [0.0, amount] } else { [amount, 0.0] };
             // a few millimetres or degrees is a configuration difference, not a mechanism
             let real = if kind == JointKind::Slide { amount.abs() > 0.012 } else { amount.abs() > 0.05 };
-            joints.push(JointProp { name: format!("{} {}", links[ci].name, if kind == JointKind::Slide { "slide" } else { "pivot" }), kind, parent: pi, child: ci, anchor, axis: norm(base.rotate(axis)), range: Some(range), source: "two poses".into(), accepted: real });
+            joints.push(JointProp { name: format!("{} {}", links[ci].name, if kind == JointKind::Slide { "slide" } else { "pivot" }), kind, parent: pi, child: ci, anchor, axis: norm(axis), range: Some(range), source: "two poses".into(), accepted: real });
         }
     }
     // a link whose move was too small to be a mechanism goes back into the link it was on
@@ -496,14 +497,11 @@ fn screw(rel: &Pose) -> (JointKind, V3, V3, f64) {
     let mut amount = 2.0 * rel.quat[0].clamp(-1.0, 1.0).acos();
     if amount > std::f64::consts::PI { amount -= std::f64::consts::TAU; }
     if axis[0] + axis[1] + axis[2] < 0.0 { axis = neg(axis); amount = -amount; }
-    // a point on the axis: solve (I - R) p = t across the axis, by a few fixed-point steps
+    // the point on the axis nearest the origin solves (I - R) p = t across the axis; exactly,
+    // p = (t + cot(angle/2) axis x t) / 2
     let t = sub(rel.pos, scale(axis, dot(rel.pos, axis)));
-    let mut p = [0.0; 3];
-    for _ in 0..200 { let rp = rel.rotate(p); p = add(scale(add(rp, t), 0.5), scale(p, 0.5)); p = sub(p, scale(axis, dot(p, axis))); }
-    let mut q = [0.0; 3];
-    // the fixed-point above converges to the axis point for turns under about 180 degrees
-    for _ in 0..400 { q = add(rel.rotate(q), t); q = sub(q, scale(axis, dot(q, axis))); q = scale(add(q, p), 0.5); }
-    (JointKind::Hinge, axis, q, amount)
+    let p = scale(add(t, scale(cross(axis, t), 1.0 / (amount / 2.0).tan())), 0.5);
+    (JointKind::Hinge, axis, p, amount)
 }
 
 /// Rollers: parts whose name (or BOM row) is a library wheel, confirmed by a cylinder of about the
@@ -813,6 +811,19 @@ pub fn reattach(r: &mut Robot, new_parts: &[Part]) -> Vec<String> {
 mod tests {
     use super::*;
     use crate::cadpack::PartRow;
+
+    #[test]
+    fn screw_finds_the_pivot() {
+        for (deg, pivot) in [(5.0, [0.3, -0.2, 0.7]), (80.0, [-1.0, 0.4, 0.2]), (170.0, [0.1, 0.1, 0.1])] {
+            let q = axis_angle([0.0, 1.0, 0.0], f64::to_radians(deg));
+            // a turn about the line through `pivot` along y
+            let rel = Pose::new(sub(pivot, qrot(q, pivot)), q);
+            let (k, axis, p, amount) = screw(&rel);
+            assert_eq!(k, JointKind::Hinge);
+            assert!((amount.abs() - f64::to_radians(deg)).abs() < 1e-9 && axis[1].abs() > 0.999);
+            assert!((p[0] - pivot[0]).abs() < 1e-9 && (p[2] - pivot[2]).abs() < 1e-9, "{deg}: {p:?} vs {pivot:?}");
+        }
+    }
 
     fn row(id: &str, sub: &str) -> PartRow { PartRow { id: id.into(), name: id.into(), path: vec!["Robot".into(), sub.into(), id.into()], shape: 0, m: vec![], color: None } }
     fn placed<'a>(r: &'a PartRow, lo: V3, hi: V3) -> Placed<'a> {
