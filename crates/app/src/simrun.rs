@@ -16,7 +16,7 @@ pub enum SceneKind { Carpet, Field, Bench }
 
 pub enum Msg {
     /// Build the world for this project; keep the state across if the scene is the same (an edit)
-    Load { project: Box<Project>, kind: SceneKind, keep: bool },
+    Load { project: Box<Project>, kind: SceneKind, keep: bool, game: Option<Box<sim::game::Found>> },
     Play(bool),
     Speed(f64),
     StepOnce,
@@ -75,12 +75,15 @@ impl Plugin for SimPlugin {
 const HISTORY_EVERY: f64 = 0.01;
 const HISTORY_MAX: usize = 30_000;
 
-fn build(project: &Project, lib: &Library, kind: SceneKind, throw: u32) -> anyhow::Result<World> {
+fn build(project: &Project, lib: &Library, kind: SceneKind, throw: u32, game: Option<&sim::game::Found>) -> anyhow::Result<World> {
     match kind {
         SceneKind::Carpet => World::new(project, lib, Scene::carpet()),
         SceneKind::Field => {
-            let g = sim::game::GamePack::builtin(&project.game).ok_or_else(|| anyhow::anyhow!("no game pack '{}'", project.game))?;
-            World::new(project, lib, Scene::field(&g))
+            let found = game.ok_or_else(|| anyhow::anyhow!("no game pack '{}'", project.game))?;
+            // the pack's own pieces join the library
+            let mut lib = lib.clone();
+            if let Some(d) = &found.dir { lib.load_overlay(d).map_err(|e| anyhow::anyhow!("the game pack's pieces.json: {e}"))?; }
+            World::new(project, &lib, Scene::field(&found.pack))
         }
         SceneKind::Bench => {
             let mut scene = Scene::bench();
@@ -111,6 +114,7 @@ fn run(rx: Receiver<Msg>, shared: Arc<Mutex<Shared>>) {
     };
     let mut world: Option<World> = None;
     let mut project: Option<Project> = None;
+    let mut last_game: Option<sim::game::Found> = None;
     let mut kind = SceneKind::Carpet;
     let mut playing = true;
     let mut speed = 1.0;
@@ -132,10 +136,11 @@ fn run(rx: Receiver<Msg>, shared: Arc<Mutex<Shared>>) {
         }
         for m in pending.drain(..) {
             match m {
-                Msg::Load { project: p, kind: k, keep } => {
+                Msg::Load { project: p, kind: k, keep, game: g } => {
+                    last_game = g.map(|b| *b);
                     let same = keep && k == kind && world.is_some();
                     if k != kind { throw = 0; }
-                    match build(&p, &lib, k, throw) {
+                    match build(&p, &lib, k, throw, last_game.as_ref()) {
                         Ok(mut w) => {
                             if same { if let Some(old) = &world { w.carry_from(old); } }
                             let mut s = shared.lock().unwrap();
@@ -161,7 +166,7 @@ fn run(rx: Receiver<Msg>, shared: Arc<Mutex<Shared>>) {
                 Msg::Reset => {
                     if let Some(p) = &project {
                         throw += 1;
-                        if let Ok(w) = build(p, &lib, kind, throw) {
+                        if let Ok(w) = build(p, &lib, kind, throw, last_game.as_ref()) {
                             let mut s = shared.lock().unwrap();
                             s.history.clear(); s.log.clear(); s.generation += 1; s.snap = Some(w.snapshot());
                             world = Some(w); last_hist = -1.0;
@@ -201,7 +206,7 @@ fn run(rx: Receiver<Msg>, shared: Arc<Mutex<Shared>>) {
         // the Bench throws again when a throw is done
         if kind == SceneKind::Bench && w.time > project.as_ref().map_or(1.5, |p| p.bench.duration) + 0.4 {
             throw += 1;
-            if let Some(p) = &project { if let Ok(nw) = build(p, &lib, kind, throw) { *w = nw; let mut s = shared.lock().unwrap(); s.bench_throws = throw; s.generation += 1; s.history.clear(); last_hist = -1.0; } }
+            if let Some(p) = &project { if let Ok(nw) = build(p, &lib, kind, throw, last_game.as_ref()) { *w = nw; let mut s = shared.lock().unwrap(); s.bench_throws = throw; s.generation += 1; s.history.clear(); last_hist = -1.0; } }
         }
         if n > 0 {
             rt_sim += n as f64 * w.dt;

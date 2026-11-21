@@ -224,7 +224,7 @@ fn field(mut commands: Commands, sim: Res<Sim>, st: Res<AppState>, mut built: Re
     built.kind = kind;
     for e in &old { commands.entity(e).despawn(); }
     if kind != Some(SceneKind::Field) { return; }
-    let Some(g) = sim::game::GamePack::builtin(&st.project().game) else { return };
+    let Some(g) = st.game.as_ref().and_then(|g| g.1.as_ref().ok()).map(|f| f.pack.clone()) else { built.kind = None; return };
     // the carpet's markings: the field's outline
     let lines = material(&mut built, &mut mats, "#e8e8e8", 1.0);
     let carpet = material(&mut built, &mut mats, "#3a4048", 1.0);
@@ -238,7 +238,9 @@ fn field(mut commands: Commands, sim: Res<Sim>, st: Res<AppState>, mut built: Re
         let q = model::math::euler_to_quat(s.euler_deg.map(f64::to_radians));
         let mut t = to_bevy(&model::Pose::new(s.pos, q));
         t.rotation *= fix;
-        let m = if s.ghost { lines.clone() } else { material(&mut built, &mut mats, if s.color.is_empty() { "#777777" } else { &s.color }, 1.0) };
+        // markings without a colour are white lines; a coloured ghost (a BUMP the drivetrain drives
+        // through) is drawn in its colour, see-through
+        let m = if s.ghost && s.color.is_empty() { lines.clone() } else { material(&mut built, &mut mats, if s.color.is_empty() { "#777777" } else { &s.color }, if s.ghost { 0.5 } else { 1.0 }) };
         let e = commands.spawn((FieldVis, Mesh3d(meshes.add(mesh)), MeshMaterial3d(m), t)).id();
         commands.entity(*root).add_child(e);
     }

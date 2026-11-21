@@ -531,3 +531,33 @@ fn m6_gate_sweep_3x3x3_by_20() {
     println!("peak squeeze by height: {:.0} {:.0} {:.0} N", by(0), by(1), by(2));
     assert!(by(0) < by(1) && by(1) < by(2), "lower rollers, more squeeze");
 }
+
+/// M6 gate: the REBUILT pack, made from the kickoff guide with no code: it loads clean, its 504
+/// FUEL settle, a FUEL dropped into a HUB scores a point and comes back out of the NEUTRAL ZONE
+/// face, and the field runs faster than real time.
+#[test]
+fn m6_gate_rebuilt_pack() {
+    let lib = Library::builtin();
+    let g = sim::game::GamePack::builtin("rebuilt-2026").expect("the pack reads");
+    assert!(g.check(&lib).is_empty(), "{:?}", g.check(&lib));
+    let fuel = g.pieces.iter().filter(|p| p.piece == "fuel-2026").count();
+    assert_eq!(fuel, 408 + 48, "neutral zone and depots, both halves");
+    assert!(g.zones.iter().any(|z| z.name == "Red HUB"), "mirrored");
+    let hub = g.zones.iter().find(|z| z.name == "Blue HUB").unwrap().clone();
+    let mut scene = Scene::field(&g);
+    scene.pieces.push(Spawn { piece: "fuel-2026".into(), pos: [hub.center[0], hub.center[1], 2.4], quat: QI, lin: [0.0; 3], ang: [0.0; 3] });
+    let mut p = Project::new("rebuilt");
+    p.game = "rebuilt-2026".into();
+    let mut w = World::new(&p, &lib, scene).unwrap();
+    let t = std::time::Instant::now();
+    while w.time < 3.0 { w.step(); }
+    let secs = t.elapsed().as_secs_f64();
+    // the scene's own pieces come first: the dropped FUEL is the first
+    let out = w.piece_positions()[0].0;
+    println!("3 s of field in {secs:.2} s ({:.1}x real time, {} pieces); the dropped FUEL is at {:?}; {:?}", 3.0 / secs, w.piece_positions().len(), out.map(|v| (v * 100.0).round() / 100.0), w.matched.log.iter().map(|e| (&e.what, e.points)).collect::<Vec<_>>());
+    assert!(w.matched.log.iter().any(|e| e.what == "scored Blue HUB" && e.points == 1.0), "the HUB counts it");
+    assert!(out[0] > hub.center[0] + 0.6 && out[2] < 1.0, "and sends it back out toward the NEUTRAL ZONE");
+    // (feeders' stock waits out of sight below the field)
+    assert!(w.piece_positions().iter().filter(|(p, _)| p[2] > -10.0).all(|(p, _)| p[2] > -0.05 && p[2] < 3.0), "everything stays on the field");
+    assert!(secs < 3.0, "faster than real time");
+}

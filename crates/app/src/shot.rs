@@ -38,6 +38,8 @@ fn open(mut st: ResMut<AppState>) {
     st.start_new(p);
     st.ws = std::env::var("FPS_SHOT_WS").map(|w| Workspace::from_key(&w)).unwrap_or(Workspace::Build);
     if std::env::var("FPS_SHOT_WS").as_deref() == Ok("home") { st.ws = Workspace::Home; }
+    // FPS_SHOT_GAME=<id>: the project plays that game
+    if let Ok(id) = std::env::var("FPS_SHOT_GAME") { st.doc.edit("Game", |p| p.game = id); }
     if std::env::var("FPS_SHOT_BENCH").is_ok() {
         let mut p = st.project().clone();
         p.bench.compare = vec!["am-compliant-4in-35a".into(), "am-compliant-4in-60a".into(), "wcp-flex-4in-45a".into()];

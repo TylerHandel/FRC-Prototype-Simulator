@@ -27,6 +27,9 @@ Windows only for now.
    REEF, let go near a branch to score. The cycle log shows your cycle times.
 5. **Analyze**: plots of the run, the power budget, and a CSV export.
 
+The **Field** has REEFSCAPE (2025) and REBUILT (2026). At kickoff, add the new game yourself, with
+no programming: [docs/KICKOFF.md](docs/KICKOFF.md) takes you through it step by step.
+
 Every number field takes units and sums: `1.75in`, `30mm`, `2ft + 3in`, `30/11`.
 Ctrl+Z undoes anything. Ctrl+K finds any action by name. Projects save themselves.
 

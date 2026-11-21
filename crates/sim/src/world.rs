@@ -42,13 +42,15 @@ pub struct Scene {
     pub pieces: Vec<Spawn>,
     /// the game's own pieces and feeders (Field)
     pub game_pieces: bool,
+    /// the field (Field): from the app or a folder of the user's
+    pub game: Option<GamePack>,
 }
 
 impl Scene {
-    pub fn bench() -> Self { Scene { mode: Mode::Bench, start: [0.0; 3], wheel_override: None, pieces: vec![], game_pieces: false } }
-    pub fn carpet() -> Self { Scene { mode: Mode::Carpet, start: [0.0; 3], wheel_override: None, pieces: vec![], game_pieces: false } }
+    pub fn bench() -> Self { Scene { mode: Mode::Bench, start: [0.0; 3], wheel_override: None, pieces: vec![], game_pieces: false, game: None } }
+    pub fn carpet() -> Self { Scene { mode: Mode::Carpet, start: [0.0; 3], wheel_override: None, pieces: vec![], game_pieces: false, game: None } }
     pub fn field(game: &GamePack) -> Self {
-        Scene { mode: Mode::Field, start: [game.start.pos[0], game.start.pos[1], game.start.yaw_deg.to_radians()], wheel_override: None, pieces: vec![], game_pieces: true }
+        Scene { mode: Mode::Field, start: [game.start.pos[0], game.start.pos[1], game.start.yaw_deg.to_radians()], wheel_override: None, pieces: vec![], game_pieces: true, game: Some(game.clone()) }
     }
 }
 
@@ -243,7 +245,7 @@ fn link_inertia(shapes: &[Shape], mass: f64, fallback_com: V3) -> (V3, [f64; 9])
 
 impl World {
     pub fn new(project: &Project, lib: &Library, scene: Scene) -> anyhow::Result<World> {
-        let game = if scene.mode == Mode::Field { GamePack::builtin(&project.game) } else { None };
+        let game = if scene.mode == Mode::Field { scene.game.clone().or_else(|| GamePack::builtin(&project.game)) } else { None };
         let r = &project.robot;
         let issues = model::validate::issues(r, lib);
         if let Some(e) = issues.iter().find(|i| i.severity == model::validate::Severity::Error) {
@@ -384,8 +386,8 @@ impl World {
                 let quat = if s.upright { axis_angle([0.0, 0.0, 1.0], s.yaw_deg.to_radians()) } else { qmul(axis_angle([0.0, 0.0, 1.0], s.yaw_deg.to_radians()), lay) };
                 spawns.push(Spawn { piece: s.piece.clone(), pos: s.pos, quat, lin: [0.0; 3], ang: [0.0; 3] });
             }
-            // pieces the feeders will hand out: two per feeder, parked until then
-            for fd in &g.feeders { for _ in 0..2 { spawns.push(Spawn { piece: fd.piece.clone(), pos: [0.0, 0.0, -50.0], quat: QI, lin: [0.0; 3], ang: [0.0; 3] }); } }
+            // pieces the feeders will hand out, parked until then
+            for fd in &g.feeders { for _ in 0..fd.stock.min(64) { spawns.push(Spawn { piece: fd.piece.clone(), pos: [0.0, 0.0, -50.0], quat: QI, lin: [0.0; 3], ang: [0.0; 3] }); } }
         }
         let mut piece_kind_idx = Vec::new();
         for (i, s) in spawns.iter().enumerate() {
@@ -947,9 +949,15 @@ impl World {
             for (zi, z) in g.zones.iter().enumerate() {
                 if z.seat.is_some() || z.piece != kid || self.matched.filled[zi] >= z.capacity { continue; }
                 if z.contains(pos) {
-                    self.pieces[pi].at = PieceWhere::Scored;
-                    self.pieces[pi].shown = Pose::new(pos, self.engine.free_pose(self.pieces[pi].jnt).1);
                     self.score_zone(zi);
+                    if let Some(e) = &z.exit {
+                        // a goal that gives pieces back: out it goes, free again
+                        let q = self.engine.free_pose(self.pieces[pi].jnt).1;
+                        self.engine.set_free(self.pieces[pi].jnt, e.pos, q, scale(norm(e.dir), e.speed), [0.0; 3]);
+                    } else {
+                        self.pieces[pi].at = PieceWhere::Scored;
+                        self.pieces[pi].shown = Pose::new(pos, self.engine.free_pose(self.pieces[pi].jnt).1);
+                    }
                     break;
                 }
             }

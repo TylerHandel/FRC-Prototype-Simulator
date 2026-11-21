@@ -1,0 +1,52 @@
+{
+  "id": "rebuilt-2026",
+  "name": "REBUILT (2026)",
+  "about": "A simplified field made by following docs/KICKOFF.md, from the dimensions in rebuilt-sim-2026 (js/constants.js, from FIRST's field CAD and drawings). HUBs count each FUEL that drops in (1 point, active or not) and send it back out of the NEUTRAL ZONE face; OUTPOST chutes feed FUEL; 408 FUEL in the NEUTRAL ZONE and 24 in each DEPOT. BUMPs are drawn but driven through (the drivetrain drives on flat carpet); TRENCH arms are solid at 22.25 in. Climbing isn't scored.",
+  "field": { "length": 16.541, "width": 8.069, "carpet_friction": 1.0 },
+  "statics": [
+    { "name": "North guardrail", "shape": { "box": { "size": [16.541, 0.1, 0.51] } }, "pos": [0, 4.0845, 0.255], "color": "#4a4f55" },
+    { "name": "South guardrail", "shape": { "box": { "size": [16.541, 0.1, 0.51] } }, "pos": [0, -4.0845, 0.255], "color": "#4a4f55" },
+    { "name": "Blue alliance wall", "shape": { "box": { "size": [0.1, 8.069, 1.988] } }, "pos": [-8.3205, 0, 0.994], "color": "#2b5fad", "mirror": true, "mirror_color": "#b8312f" },
+    { "name": "Centre line", "shape": { "box": { "size": [0.05, 8.069, 0.002] } }, "pos": [0, 0, 0.001], "ghost": true },
+
+    { "name": "Blue HUB", "shape": { "box": { "size": [1.194, 1.194, 1.40] } }, "pos": [-3.6452, 0, 0.70], "color": "#3b6fc4", "mirror": true, "mirror_color": "#c94f4f" },
+    { "name": "Blue HUB rim, wall side", "shape": { "box": { "size": [0.03, 1.194, 0.43] } }, "pos": [-4.2272, 0, 1.615], "color": "#b9c6d3", "mirror": true },
+    { "name": "Blue HUB rim, centre side", "shape": { "box": { "size": [0.03, 1.194, 0.43] } }, "pos": [-3.0632, 0, 1.615], "color": "#b9c6d3", "mirror": true },
+    { "name": "Blue HUB rim, north", "shape": { "box": { "size": [1.194, 0.03, 0.43] } }, "pos": [-3.6452, 0.582, 1.615], "color": "#b9c6d3", "mirror": true },
+    { "name": "Blue HUB rim, south", "shape": { "box": { "size": [1.194, 0.03, 0.43] } }, "pos": [-3.6452, -0.582, 1.615], "color": "#b9c6d3", "mirror": true },
+
+    { "name": "Blue BUMP north", "shape": { "box": { "size": [1.128, 1.854, 0.165] } }, "pos": [-3.6452, 1.524, 0.083], "color": "#5b6670", "ghost": true, "mirror": true },
+    { "name": "Blue BUMP south", "shape": { "box": { "size": [1.128, 1.854, 0.165] } }, "pos": [-3.6452, -1.524, 0.083], "color": "#5b6670", "ghost": true, "mirror": true },
+
+    { "name": "Blue TRENCH north, arm", "shape": { "box": { "size": [1.194, 1.279, 0.102] } }, "pos": [-3.6452, 3.395, 0.616], "color": "#8d8d93", "mirror": true },
+    { "name": "Blue TRENCH north, skirt", "shape": { "box": { "size": [1.194, 0.305, 1.022] } }, "pos": [-3.6452, 2.603, 0.511], "color": "#6e6e78", "mirror": true },
+    { "name": "Blue TRENCH south, arm", "shape": { "box": { "size": [1.194, 1.279, 0.102] } }, "pos": [-3.6452, -3.395, 0.616], "color": "#8d8d93", "mirror": true },
+    { "name": "Blue TRENCH south, skirt", "shape": { "box": { "size": [1.194, 0.305, 1.022] } }, "pos": [-3.6452, -2.603, 0.511], "color": "#6e6e78", "mirror": true },
+
+    { "name": "Blue TOWER upright north", "shape": { "box": { "size": [0.089, 0.038, 1.832] } }, "pos": [-7.21, 0.1399, 0.916], "color": "#9aa3ad", "mirror": true },
+    { "name": "Blue TOWER upright south", "shape": { "box": { "size": [0.089, 0.038, 1.832] } }, "pos": [-7.21, -0.7175, 0.916], "color": "#9aa3ad", "mirror": true },
+    { "name": "Blue TOWER LOW rung", "shape": { "cylinder": { "radius": 0.0211, "length": 1.193 } }, "pos": [-7.21, -0.2888, 0.686], "euler_deg": [90, 0, 0], "color": "#d0d4d8", "mirror": true },
+    { "name": "Blue TOWER MID rung", "shape": { "cylinder": { "radius": 0.0211, "length": 1.193 } }, "pos": [-7.21, -0.2888, 1.143], "euler_deg": [90, 0, 0], "color": "#d0d4d8", "mirror": true },
+    { "name": "Blue TOWER HIGH rung", "shape": { "cylinder": { "radius": 0.0211, "length": 1.193 } }, "pos": [-7.21, -0.2888, 1.600], "euler_deg": [90, 0, 0], "color": "#d0d4d8", "mirror": true },
+    { "name": "Blue TOWER support north", "shape": { "box": { "size": [1.06, 0.044, 0.044] } }, "pos": [-7.7405, 0.1399, 0.914], "color": "#9aa3ad", "mirror": true },
+    { "name": "Blue TOWER support south", "shape": { "box": { "size": [1.06, 0.044, 0.044] } }, "pos": [-7.7405, -0.7175, 0.914], "color": "#9aa3ad", "mirror": true },
+    { "name": "Blue TOWER base", "shape": { "box": { "size": [1.145, 0.991, 0.007] } }, "pos": [-7.698, -0.2888, 0.004], "color": "#3b6fc4", "ghost": true, "mirror": true, "mirror_color": "#c94f4f" },
+
+    { "name": "Blue DEPOT", "shape": { "box": { "size": [0.686, 1.067, 0.029] } }, "pos": [-7.9275, 1.9305, 0.014], "color": "#3b6fc4", "ghost": true, "mirror": true, "mirror_color": "#c94f4f" },
+    { "name": "Blue OUTPOST chute", "shape": { "box": { "size": [0.2, 0.8, 0.18] } }, "pos": [-8.17, -3.3686, 0.80], "color": "#8d8d93", "ghost": true, "mirror": true }
+  ],
+  "pieces": [
+    { "piece": "fuel-2026", "pos": [-0.873, -2.533, 0.077], "grid": [6, 34], "spacing": [0.1541, 0.1535], "mirror": true },
+    { "piece": "fuel-2026", "pos": [-8.1915, 1.5503, 0.077], "grid": [4, 6], "spacing": [0.1511, 0.1521], "mirror": true }
+  ],
+  "feeders": [
+    { "name": "Blue OUTPOST", "piece": "fuel-2026", "alliance": "blue", "pos": [-8.17, -3.3686, 0.82], "dir": [1, 0, -0.27], "speed": 2.0, "interval": 0.6, "reach": 1.6, "stock": 24, "mirror": true }
+  ],
+  "zones": [
+    { "name": "Blue HUB", "alliance": "blue", "piece": "fuel-2026", "center": [-3.6452, 0, 1.60], "size": [1.05, 1.05, 0.35],
+      "auto_points": 1, "teleop_points": 1, "capacity": 100000,
+      "exit": { "pos": [-2.848, 0, 0.84], "dir": [1, 0, 0], "speed": 1.2 }, "mirror": true }
+  ],
+  "timing": { "auto": 20, "teleop": 140 },
+  "start": { "pos": [-4.8, 2.0], "yaw_deg": 0 }
+}

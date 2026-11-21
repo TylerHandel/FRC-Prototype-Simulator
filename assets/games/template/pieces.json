@@ -1,0 +1,5 @@
+{ "pieces": [
+  { "id": "widget-new", "name": "WIDGET", "game": "New game", "shape": { "sphere": { "d_in": 7.0 } },
+    "mass_kg": 0.30, "surface": "foam", "law": "rigid", "color": "#ff8800",
+    "source": "an example: put the manual's section here", "measured": false }
+] }

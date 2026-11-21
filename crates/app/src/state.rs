@@ -80,6 +80,10 @@ pub struct AppState {
     /// seconds since the last autosave
     pub autosave_t: f64,
     pub plot_signals: Vec<String>,
+    /// the project's game pack, found (cached by id; `None` until looked up)
+    pub game: Option<(String, Result<sim::game::Found, String>)>,
+    /// every pack the Field's picker offers, and each one's problems (refreshed on Reload)
+    pub games: Vec<(String, String, Vec<String>)>,
 }
 
 impl AppState {
@@ -91,10 +95,40 @@ impl AppState {
             doc: Doc::new(Project::new("My robot")), lib, dir: None, ws, sel: Selection::Robot, settings, toasts: vec![], bench: BenchUi { throws: 5, rows: vec![(0, "0.5, 1, 1.5, 2".into())], ..Default::default() },
             view: ViewOpts { com: true, contacts: true, zones: true, axes: true, follow: false }, sim_rev: u64::MAX, new_name: "My robot".into(),
             palette_open: false, palette_query: String::new(), import: Default::default(), autosave_t: 0.0,
-            plot_signals: vec!["Battery voltage".into(), "Battery current".into()],
+            plot_signals: vec!["Battery voltage".into(), "Battery current".into()], game: None, games: vec![],
         }
     }
     pub fn project(&self) -> &Project { &self.doc.project }
+
+    /// Where the user's game packs live: "Game packs" beside the projects.
+    pub fn games_dir(&self) -> PathBuf { self.settings.projects_dir.join("Game packs") }
+
+    /// The project's game pack, looked up again when the project names another (or `reload`):
+    /// its pieces join the library.
+    pub fn game(&mut self, reload: bool) -> Result<&sim::game::Found, &String> {
+        let id = self.doc.project.game.clone();
+        if reload || self.game.as_ref().is_none_or(|g| g.0 != id) {
+            let r = sim::game::find(&id, &[self.games_dir()]);
+            if let Ok(Some(d)) = r.as_ref().map(|f| f.dir.clone()) { let _ = self.lib.load_overlay(&d); }
+            self.game = Some((id, r));
+        }
+        self.game.as_ref().unwrap().1.as_ref()
+    }
+
+    /// Every pack the app can see, with its problems, for the Field's picker.
+    pub fn list_games(&mut self) {
+        let dirs = [self.games_dir()];
+        let lib = self.lib.clone();
+        self.games = sim::game::list(&dirs).into_iter().map(|(id, dir, r)| match r {
+            Ok(g) => {
+                let mut l = lib.clone();
+                if let Some(d) = &dir { if let Err(e) = l.load_overlay(d) { return (id, g.name.clone(), vec![format!("pieces.json: {e}")]); } }
+                let name = if dir.is_some() { format!("{} (your folder)", g.name) } else { g.name.clone() };
+                (id, name, g.check(&l))
+            }
+            Err(e) => (id.clone(), format!("{id} (can't be read)"), vec![e]),
+        }).collect();
+    }
     pub fn toast(&mut self, s: impl Into<String>) { self.toasts.push((s.into(), 5.0)); }
 
     pub fn open(&mut self, dir: PathBuf) {

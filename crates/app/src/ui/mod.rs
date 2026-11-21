@@ -60,7 +60,8 @@ fn sync_sim(mut st: ResMut<AppState>, sim: Res<Sim>, mut last_ws: Local<Option<W
     let changed_ws = *last_ws != Some(st.ws);
     if st.sim_rev != st.doc.revision || changed_ws && *last_kind != Some(kind) {
         let keep = !changed_ws || *last_kind == Some(kind);
-        sim.send(Msg::Load { project: Box::new(st.doc.project.clone()), kind, keep });
+        let game = if kind == SceneKind::Field { st.game(false).ok().cloned().map(Box::new) } else { None };
+        sim.send(Msg::Load { project: Box::new(st.doc.project.clone()), kind, keep, game });
         st.sim_rev = st.doc.revision;
         *last_kind = Some(kind);
     }
