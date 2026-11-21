@@ -141,6 +141,18 @@ impl Engine {
 
     pub fn set_equality(&mut self, e: usize, on: bool) { self.data.eq_active_mut()[e] = on; }
 
+    /// MuJoCo's own contacts touching body `b`: (the other geom's name, its body, depth, normal force)
+    pub fn contacts_of(&self, b: usize) -> Vec<(String, usize, f64, f64)> {
+        let m = self.data.model();
+        self.data.contact().iter().enumerate().filter_map(|(i, c)| {
+            let (g1, g2) = (c.geom[0] as usize, c.geom[1] as usize);
+            let (b1, b2) = (self.geom_body(g1), self.geom_body(g2));
+            let other = if b1 == b { g2 } else if b2 == b { g1 } else { return None };
+            let name = m.id_to_name(MjtObjBase::mjOBJ_GEOM, other).unwrap_or("?").to_string();
+            Some((name, self.geom_body(other), -c.dist, self.data.contact_force(i)[0]))
+        }).collect()
+    }
+
     pub fn ngeom(&self) -> usize { self.data.model().ffi().ngeom as usize }
     pub fn geom_body(&self, g: usize) -> usize { self.data.model().geom_bodyid()[g] as usize }
     pub fn geom_pos(&self, g: usize) -> V3 { self.data.geom_xpos()[g] }

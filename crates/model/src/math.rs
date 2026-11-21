@@ -139,3 +139,18 @@ mod tests {
         assert!((dot([m[1], m[2], m[3]], [q2[1], q2[2], q2[3]]) + m[0] * q2[0]).abs() > 1.0 - 1e-9);
     }
 }
+
+/// The shortest turn taking direction `a` to direction `b`.
+pub fn quat_between(a: V3, b: V3) -> Quat {
+    let (a, b) = (norm(a), norm(b));
+    let c = cross(a, b);
+    let d = dot(a, b);
+    if d < -0.999_999 {
+        // opposite: half a turn about any line across `a`
+        let o = if a[0].abs() < 0.9 { [1.0, 0.0, 0.0] } else { [0.0, 1.0, 0.0] };
+        return axis_angle(norm(cross(a, o)), std::f64::consts::PI);
+    }
+    let q = [1.0 + d, c[0], c[1], c[2]];
+    let n = (q[0] * q[0] + q[1] * q[1] + q[2] * q[2] + q[3] * q[3]).sqrt();
+    [q[0] / n, q[1] / n, q[2] / n, q[3] / n]
+}

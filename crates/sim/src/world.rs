@@ -1030,6 +1030,11 @@ impl World {
         (com, ord, margin)
     }
 
+    /// MuJoCo's rigid contacts on piece `i` (for finding what holds a piece up)
+    pub fn piece_contacts(&self, i: usize) -> Vec<(String, f64, f64)> {
+        self.pieces.get(i).map_or(vec![], |p| self.engine.contacts_of(p.body).into_iter().map(|(n, _, d, f)| (n, d, f)).collect())
+    }
+
     /// a sensor's reading by name
     pub fn sensor(&self, name: &str) -> Option<bool> { self.sensors.iter().find(|x| x.name == name).map(|x| x.on) }
 

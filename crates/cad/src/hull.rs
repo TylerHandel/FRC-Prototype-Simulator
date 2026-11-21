@@ -100,8 +100,7 @@ pub fn part_hulls(mesh: &Mesh, pose: &Pose, volume: f64) -> Vec<Vec<V3>> {
         let mut flush = |g: &mut Vec<usize>| {
             let ga: f64 = g.iter().map(|&i| faces[i].1).sum();
             if g.is_empty() || ga < keep { g.clear(); return; }
-            let pts: Vec<V3> = g.iter().flat_map(|&i| tris[i].iter().map(|&k| v[k])).collect();
-            slabs.push(thicken(support(&pts), Some(*n)));
+            split_slab(g, *n, &tris, &v, &faces, 0, &mut slabs);
             g.clear();
         };
         for (d, i) in by_depth {
@@ -113,6 +112,68 @@ pub fn part_hulls(mesh: &Mesh, pose: &Pose, volume: f64) -> Vec<Vec<V3>> {
     }
     if slabs.is_empty() || slabs.len() > MAX_SLABS { return vec![thicken(support(&v), None)]; }
     slabs
+}
+
+/// A flat slab whose outline is much bigger than its face (a plate with a window or lightening
+/// holes) is cut in two across its longer side, again and again, until each piece is mostly
+/// material; otherwise a hull would fill the holes and block what passes through them.
+fn split_slab(g: &[usize], n: V3, tris: &[[usize; 3]], v: &[V3], faces: &[(V3, f64, V3)], depth: usize, out: &mut Vec<Vec<V3>>) {
+    const SOLID: f64 = 0.7;
+    const MAX_DEPTH: usize = 5;
+    let pts: Vec<V3> = g.iter().flat_map(|&i| tris[i].iter().map(|&k| v[k])).collect();
+    // the plane's own axes
+    let u = norm(if n[0].abs() < 0.9 { cross(n, [1.0, 0.0, 0.0]) } else { cross(n, [0.0, 1.0, 0.0]) });
+    let w = cross(n, u);
+    let flat: Vec<[f64; 2]> = pts.iter().map(|p| [dot(*p, u), dot(*p, w)]).collect();
+    // the face's area: the bigger of the two sides (a slab holds both faces of the sheet)
+    let (mut up, mut down) = (0.0, 0.0);
+    for &i in g { if dot(faces[i].0, n) >= 0.0 { up += faces[i].1 } else { down += faces[i].1 } }
+    let face = f64::max(up, down);
+    let outline = area2d(&hull2d(&flat));
+    if depth >= MAX_DEPTH || g.len() < 4 || outline <= 0.0 || face / outline >= SOLID {
+        out.push(thicken(support(&pts), Some(n)));
+        return;
+    }
+    let along = |c: V3| -> [f64; 2] { [dot(c, u), dot(c, w)] };
+    let (mut lo, mut hi) = ([f64::INFINITY; 2], [f64::NEG_INFINITY; 2]);
+    for f in &flat { for k in 0..2 { lo[k] = lo[k].min(f[k]); hi[k] = hi[k].max(f[k]); } }
+    let k = if hi[0] - lo[0] >= hi[1] - lo[1] { 0 } else { 1 };
+    let mut cs: Vec<f64> = g.iter().map(|&i| along(faces[i].2)[k]).collect();
+    cs.sort_by(|a, b| a.total_cmp(b));
+    let cut = cs[cs.len() / 2];
+    let (a, b): (Vec<usize>, Vec<usize>) = g.iter().partition(|&&i| along(faces[i].2)[k] < cut);
+    if a.is_empty() || b.is_empty() { out.push(thicken(support(&pts), Some(n))); return; }
+    split_slab(&a, n, tris, v, faces, depth + 1, out);
+    split_slab(&b, n, tris, v, faces, depth + 1, out);
+}
+
+/// The convex outline of points in a plane (Andrew's monotone chain), counter-clockwise.
+fn hull2d(p: &[[f64; 2]]) -> Vec<[f64; 2]> {
+    let mut p = p.to_vec();
+    p.sort_by(|a, b| a[0].total_cmp(&b[0]).then(a[1].total_cmp(&b[1])));
+    p.dedup_by(|a, b| (a[0] - b[0]).abs() < 1e-9 && (a[1] - b[1]).abs() < 1e-9);
+    if p.len() < 3 { return p; }
+    let turn = |o: [f64; 2], a: [f64; 2], b: [f64; 2]| (a[0] - o[0]) * (b[1] - o[1]) - (a[1] - o[1]) * (b[0] - o[0]);
+    let chain = |pts: &mut dyn Iterator<Item = [f64; 2]>| -> Vec<[f64; 2]> {
+        let mut h: Vec<[f64; 2]> = vec![];
+        for q in pts {
+            while h.len() >= 2 && turn(h[h.len() - 2], h[h.len() - 1], q) <= 0.0 { h.pop(); }
+            h.push(q);
+        }
+        h.pop();
+        h
+    };
+    let mut lower = chain(&mut p.iter().copied());
+    let upper = chain(&mut p.iter().rev().copied());
+    lower.extend(upper);
+    lower
+}
+
+fn area2d(h: &[[f64; 2]]) -> f64 {
+    if h.len() < 3 { return 0.0; }
+    let mut a = 0.0;
+    for i in 0..h.len() { let (p, q) = (h[i], h[(i + 1) % h.len()]); a += p[0] * q[1] - q[0] * p[1]; }
+    a.abs() / 2.0
 }
 
 fn bounds(v: &[V3]) -> (V3, V3) {
@@ -187,6 +248,21 @@ mod tests {
             let inside = (0..3).all(|k| mid[k] > lo[k] + 1e-4 && mid[k] < hi[k] - 1e-4);
             assert!(!inside, "a slab fills the channel: {lo:?} {hi:?}");
         }
+    }
+
+    #[test]
+    fn a_plate_with_a_window_leaves_the_window_open() {
+        // a 0.3 m square plate, 5 mm thick, with a 0.2 m square window: four bars
+        let t = 0.005;
+        let bars = [([0.0, 0.0, 0.0], [0.3, 0.05, t]), ([0.0, 0.25, 0.0], [0.3, 0.3, t]), ([0.0, 0.05, 0.0], [0.05, 0.25, t]), ([0.25, 0.05, 0.0], [0.3, 0.25, t])];
+        let vol = 0.3 * 0.3 * t - 0.2 * 0.2 * t;
+        let h = part_hulls(&mesh(&bars), &Pose::default(), vol);
+        let mid = [0.15, 0.15, t / 2.0];
+        for s in &h {
+            let (lo, hi) = bounds(s);
+            assert!(!(0..2).all(|k| mid[k] > lo[k] && mid[k] < hi[k]), "a hull covers the window: {lo:?} {hi:?}");
+        }
+        assert!(area2d(&hull2d(&[[0.0, 0.0], [1.0, 0.0], [1.0, 1.0], [0.0, 1.0], [0.5, 0.5]])) - 1.0 < 1e-12);
     }
 
     #[test]

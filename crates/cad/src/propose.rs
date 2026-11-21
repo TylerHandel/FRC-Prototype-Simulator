@@ -634,6 +634,7 @@ pub fn propose(cp: &Cadpack, to_robot: &Pose, lib: &Library, bom: &HashMap<Strin
 /// drivetrain. Keeps the frame's bumpers.
 pub fn apply(r: &mut Robot, cp: &Cadpack, to_robot: &Pose, prop: &Proposal, lib: &Library) {
     let placed = place(cp, to_robot);
+    let by_id: HashMap<&str, &Placed> = placed.iter().map(|p| (p.row.id.as_str(), p)).collect();
     r.parts = placed.iter().map(|p| Part { id: p.row.id.clone(), name: p.row.name.clone(), path: p.row.path.clone(), fingerprint: Fingerprint { volume: p.volume, com: p.com, bbox: p.bbox },
         material: prop.masses.get(&p.row.id).and_then(|m| m.0.clone()), mass: prop.masses.get(&p.row.id).map(|m| m.1), hardware: p.hardware }).collect();
     // start over from the chassis
@@ -659,14 +660,25 @@ pub fn apply(r: &mut Robot, cp: &Cadpack, to_robot: &Pose, prop: &Proposal, lib:
     }
     let motor_default = prop.motors.iter().map(|m| m.1.clone()).fold(HashMap::new(), |mut h: HashMap<String, usize>, m| { *h.entry(m).or_default() += 1; h })
         .into_iter().max_by_key(|x| x.1).map(|x| x.0).unwrap_or_else(|| "kraken-x60-foc".into());
+    let stall = lib.motor(&motor_default).map_or(7.0, |m| m.stall_torque) * 60.0 / lib.motor(&motor_default).map_or(366.0, |m| m.stall_current);
     for j in prop.joints.iter().filter(|j| j.accepted) {
         let (Some(&p), Some(&c)) = (ids.get(j.parent), ids.get(j.child)) else { continue };
         if r.joint_of(c).is_some() { continue; }
         let jid = r.id();
         r.joints.push(Joint { id: jid, name: j.name.clone(), kind: j.kind, parent: p, child: c, anchor: j.anchor, axis: j.axis, range: j.range, initial: 0.0, damping: 0.0, friction: 0.0, follows: None, spring: None, source: j.source.clone() });
         let did = r.id();
-        let (ratio, spool) = if j.kind == JointKind::Slide { (9.0, 0.0222) } else { (60.0, 0.0) };
-        r.drives.push(Drive { id: did, name: format!("{} motor (guessed: check it)", j.name), motor: motor_default.clone(), count: 1, ratio, efficiency: 0.9, stator_limit: 60.0, supply_limit: 60.0,
+        // geared to hold what it carries with room to move it: the load from everything past the
+        // joint (its mass, and for a pivot the farthest it reaches), against one motor at 60 A
+        let (mass, reach) = carried(prop, &by_id, j);
+        let (count, ratio, spool) = if j.kind == JointKind::Slide {
+            let need = 2.0 * mass * 9.81 * 0.0222;
+            (1, (need / (0.9 * stall)).clamp(5.0, 30.0).round(), 0.0222)
+        } else {
+            let need = 2.0 * mass * 9.81 * reach;
+            let one = (need / (0.9 * stall)).clamp(20.0, 400.0);
+            if one > 150.0 { (2, (one / 2.0).round(), 0.0) } else { (1, one.round(), 0.0) }
+        };
+        r.drives.push(Drive { id: did, name: format!("{} motor (guessed: check it)", j.name), motor: motor_default.clone(), count, ratio, efficiency: 0.9, stator_limit: 60.0, supply_limit: 60.0,
             target: DriveTarget::Joint { joint: jid, spool_radius: spool }, control: Control::Ideal, brake: true });
     }
     // rollers on shafts
@@ -776,6 +788,47 @@ pub fn fit_collision(r: &mut Robot, cp: &Cadpack, to_robot: &Pose) {
 }
 
 fn round4(x: f64) -> f64 { (x * 1e4).round() / 1e4 }
+
+/// What a joint carries: the mass of its child and everything riding on it, and how far from
+/// the joint's axis that reaches at most (half the farthest part, the load's middle when reaching
+/// out; for a slide, 0).
+fn carried(prop: &Proposal, by_id: &HashMap<&str, &Placed>, j: &JointProp) -> (f64, f64) {
+    let mut links = vec![j.child];
+    let mut i = 0;
+    while i < links.len() {
+        let l = links[i];
+        for k in prop.joints.iter().filter(|k| k.accepted && k.parent == l) { if !links.contains(&k.child) { links.push(k.child); } }
+        i += 1;
+    }
+    let mut mass = 0.0;
+    let mut reach: f64 = 0.0;
+    for l in links {
+        for pid in &prop.links[l].parts {
+            mass += prop.masses.get(pid).map_or(0.0, |m| m.1);
+            if let Some(p) = by_id.get(pid.as_str()) {
+                if p.hardware { continue; }
+                for c in 0..8 {
+                    let q = [p.bbox[c & 1][0], p.bbox[(c >> 1) & 1][1], p.bbox[(c >> 2) & 1][2]];
+                    let d = sub(q, j.anchor);
+                    reach = reach.max(len(sub(d, scale(j.axis, dot(d, j.axis)))));
+                }
+            }
+        }
+    }
+    // a telescope past the pivot reaches farther than the CAD shows it
+    let travel: f64 = prop.joints.iter().filter(|k| k.accepted && k.kind == JointKind::Slide && k.child != j.child && links_has(prop, j.child, k.child)).filter_map(|k| k.range).map(|[a, b]| (b - a).abs()).sum();
+    (mass, if j.kind == JointKind::Slide { 0.0 } else { 0.5 * (reach + travel) })
+}
+
+/// whether link `l` rides on link `top` (or is it)
+fn links_has(prop: &Proposal, top: usize, l: usize) -> bool {
+    let mut x = l;
+    for _ in 0..32 {
+        if x == top { return true; }
+        match prop.joints.iter().find(|k| k.accepted && k.child == x) { Some(k) => x = k.parent, None => return false }
+    }
+    false
+}
 
 fn palette(i: usize) -> String { ["#9aa3ad", "#4f8fd6", "#e2a03f", "#3fae6a", "#d65a8a", "#9b6fd0", "#5aa7b3", "#c94f4f"][i % 8].into() }
 
