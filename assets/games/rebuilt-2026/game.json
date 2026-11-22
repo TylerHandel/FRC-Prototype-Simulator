@@ -1,7 +1,9 @@
 {
   "id": "rebuilt-2026",
   "name": "REBUILT (2026)",
-  "about": "A simplified field made by following docs/KICKOFF.md, from the dimensions in rebuilt-sim-2026 (js/constants.js, from FIRST's field CAD and drawings). HUBs count each FUEL that drops in (1 point, active or not) and send it back out of the NEUTRAL ZONE face; OUTPOST chutes feed FUEL; 408 FUEL in the NEUTRAL ZONE and 24 in each DEPOT. BUMPs are drawn but driven through (the drivetrain drives on flat carpet); TRENCH arms are solid at 22.25 in. Climbing isn't scored.",
+  "about": "Field model from FIRST’s official REBUILT STEP assembly. Simplified collision surfaces include both slopes of each BUMP and the TRENCH clearance. In the match workspace the HUBs count FUEL regardless of activation. Climbing is unscored.",
+  "practice_start": { "pos": [-6.6, -2.1], "yaw_deg": 0 },
+  "robot_size": { "perimeter": 2.794, "start_height": 0.762, "start_extension": 0.0, "extension": 0.3048, "operating_height": 0.762, "one_side": true, "source": "https://firstfrc.blob.core.windows.net/frc2026/Manual/HTML/2026GameManual.htm" },
   "field": { "length": 16.541, "width": 8.069, "carpet_friction": 1.0 },
   "statics": [
     { "name": "North guardrail", "shape": { "box": { "size": [16.541, 0.1, 0.51] } }, "pos": [0, 4.0845, 0.255], "color": "#4a4f55" },
@@ -15,8 +17,10 @@
     { "name": "Blue HUB rim, north", "shape": { "box": { "size": [1.194, 0.03, 0.43] } }, "pos": [-3.6452, 0.582, 1.615], "color": "#b9c6d3", "mirror": true },
     { "name": "Blue HUB rim, south", "shape": { "box": { "size": [1.194, 0.03, 0.43] } }, "pos": [-3.6452, -0.582, 1.615], "color": "#b9c6d3", "mirror": true },
 
-    { "name": "Blue BUMP north", "shape": { "box": { "size": [1.128, 1.854, 0.165] } }, "pos": [-3.6452, 1.524, 0.083], "color": "#5b6670", "ghost": true, "mirror": true },
-    { "name": "Blue BUMP south", "shape": { "box": { "size": [1.128, 1.854, 0.165] } }, "pos": [-3.6452, -1.524, 0.083], "color": "#5b6670", "ghost": true, "mirror": true },
+    { "name": "Blue BUMP north, approach", "shape": { "box": { "size": [0.583, 1.854, 0.015] } }, "pos": [-3.925, 1.522, 0.082], "euler_deg": [0,-15,0], "color": "#234ba2", "mirror": true, "mirror_color": "#ae2731" },
+    { "name": "Blue BUMP north, descent", "shape": { "box": { "size": [0.583, 1.854, 0.015] } }, "pos": [-3.365, 1.522, 0.082], "euler_deg": [0,15,0], "color": "#234ba2", "mirror": true, "mirror_color": "#ae2731" },
+    { "name": "Blue BUMP south, approach", "shape": { "box": { "size": [0.583, 1.854, 0.015] } }, "pos": [-3.925,-1.522, 0.082], "euler_deg": [0,-15,0], "color": "#234ba2", "mirror": true, "mirror_color": "#ae2731" },
+    { "name": "Blue BUMP south, descent", "shape": { "box": { "size": [0.583, 1.854, 0.015] } }, "pos": [-3.365,-1.522, 0.082], "euler_deg": [0,15,0], "color": "#234ba2", "mirror": true, "mirror_color": "#ae2731" },
 
     { "name": "Blue TRENCH north, arm", "shape": { "box": { "size": [1.194, 1.279, 0.102] } }, "pos": [-3.6452, 3.395, 0.616], "color": "#8d8d93", "mirror": true },
     { "name": "Blue TRENCH north, skirt", "shape": { "box": { "size": [1.194, 0.305, 1.022] } }, "pos": [-3.6452, 2.603, 0.511], "color": "#6e6e78", "mirror": true },

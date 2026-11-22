@@ -34,8 +34,8 @@
   "_friction_about": "Static and sliding coefficients, tread against surface. All estimated.",
   "friction": [
     { "tread": "thermoplastic-rubber", "surface": "pvc", "static": 1.1, "sliding": 0.9 },
-    { "tread": "polyurethane", "surface": "pvc", "static": 0.9, "sliding": 0.75 },
-    { "tread": "silicone", "surface": "pvc", "static": 1.2, "sliding": 1.0 },
+    { "tread": "polyurethane", "surface": "pvc", "static": 1.15, "sliding": 0.95 },
+    { "tread": "silicone", "surface": "pvc", "static": 1.35, "sliding": 1.1 },
     { "tread": "nitrile", "surface": "pvc", "static": 0.9, "sliding": 0.75 },
     { "tread": "grip-tape", "surface": "pvc", "static": 1.0, "sliding": 0.85 },
     { "tread": "polycarbonate", "surface": "pvc", "static": 0.35, "sliding": 0.3 },

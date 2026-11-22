@@ -13,16 +13,18 @@ pub type Rx<T> = std::sync::Mutex<Receiver<T>>;
 use crate::settings::Settings;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Workspace { Home, Build, Rig, Bench, Field, Analyze }
+pub enum Workspace { Home, Archetype, Build, Rig, Bench, Field, Analyze }
 
 impl Workspace {
+    pub fn for_project(p: &Project) -> Self { if p.archetype { Self::Archetype } else { Self::Build } }
     pub const ALL: [Workspace; 6] = [Workspace::Home, Workspace::Build, Workspace::Rig, Workspace::Bench, Workspace::Field, Workspace::Analyze];
     pub fn label(self) -> &'static str {
-        match self { Workspace::Home => "Home", Workspace::Build => "Build", Workspace::Rig => "Rig CAD", Workspace::Bench => "Bench", Workspace::Field => "Field", Workspace::Analyze => "Analyze" }
+        match self { Workspace::Archetype => "Archetype builder", Workspace::Home => "Home", Workspace::Build => "Build", Workspace::Rig => "Rig CAD", Workspace::Bench => "Bench", Workspace::Field => "Field", Workspace::Analyze => "Analyze" }
     }
     pub fn hint(self) -> &'static str {
         match self {
             Workspace::Home => "Open or start a project",
+            Workspace::Archetype => "Arrange mechanisms and drive the concept",
             Workspace::Build => "Build a robot from blocks: drivetrain, elevator, arm, intake, claw...",
             Workspace::Rig => "Bring in CAD from Onshape or a STEP file and mark what moves",
             Workspace::Bench => "One mechanism on a stand: send game pieces at it, swap wheels, compare",
@@ -31,9 +33,12 @@ impl Workspace {
         }
     }
     pub fn key(self) -> &'static str {
-        match self { Workspace::Home => "home", Workspace::Build => "build", Workspace::Rig => "rig", Workspace::Bench => "bench", Workspace::Field => "field", Workspace::Analyze => "analyze" }
+        match self { Workspace::Archetype => "archetype", Workspace::Home => "home", Workspace::Build => "build", Workspace::Rig => "rig", Workspace::Bench => "bench", Workspace::Field => "field", Workspace::Analyze => "analyze" }
     }
-    pub fn from_key(k: &str) -> Workspace { Workspace::ALL.into_iter().find(|w| w.key() == k).unwrap_or(Workspace::Build) }
+    pub fn from_key(k: &str) -> Workspace {
+        if k == "archetype" { return Self::Archetype; }
+        Workspace::ALL.into_iter().find(|w| w.key() == k).unwrap_or(Workspace::Build)
+    }
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -71,6 +76,7 @@ pub struct AppState {
     pub toasts: Vec<(String, f64)>,
     pub bench: BenchUi,
     pub view: ViewOpts,
+    pub assembly: crate::ui::archetype::Assembly,
     /// the project changed since the simulation last loaded it
     pub sim_rev: u64,
     pub new_name: String,
@@ -82,6 +88,7 @@ pub struct AppState {
     pub plot_signals: Vec<String>,
     /// the project's game pack, found (cached by id; `None` until looked up)
     pub game: Option<(String, Result<sim::game::Found, String>)>,
+    pub game_revision: u64,
     /// every pack the Field's picker offers, and each one's problems (refreshed on Reload)
     pub games: Vec<(String, String, Vec<String>)>,
     /// runs kept to compare (Analyze), saved with the project
@@ -95,12 +102,19 @@ impl AppState {
         let ws = Workspace::Home;
         AppState {
             doc: Doc::new(Project::new("My robot")), lib, dir: None, ws, sel: Selection::Robot, settings, toasts: vec![], bench: BenchUi { throws: 5, rows: vec![(0, "0.5, 1, 1.5, 2".into())], ..Default::default() },
-            view: ViewOpts { com: true, contacts: true, zones: true, axes: true, follow: false }, sim_rev: u64::MAX, new_name: "My robot".into(),
-            palette_open: false, palette_query: String::new(), import: Default::default(), autosave_t: 0.0,
-            plot_signals: vec!["Battery voltage".into(), "Battery current".into()], game: None, games: vec![], kept: vec![],
+            view: ViewOpts { com: true, contacts: true, zones: true, axes: true, follow: false }, sim_rev: u64::MAX, new_name: String::new(),
+            palette_open: false, palette_query: String::new(), assembly: Default::default(), import: Default::default(), autosave_t: 0.0,
+            plot_signals: vec!["Battery voltage".into(), "Battery current".into()], game: None, game_revision: 0, games: vec![], kept: vec![],
         }
     }
     pub fn project(&self) -> &Project { &self.doc.project }
+    pub fn workspaces(&self) -> &'static [Workspace] {
+        if self.ws == Workspace::Archetype || self.ws == Workspace::Home && self.project().archetype {
+            &[Workspace::Home, Workspace::Archetype]
+        } else {
+            &Workspace::ALL
+        }
+    }
 
     /// Where the user's game packs live: "Game packs" beside the projects.
     pub fn games_dir(&self) -> PathBuf { self.settings.projects_dir.join("Game packs") }
@@ -113,6 +127,7 @@ impl AppState {
             let r = sim::game::find(&id, &[self.games_dir()]);
             if let Ok(Some(d)) = r.as_ref().map(|f| f.dir.clone()) { let _ = self.lib.load_overlay(&d); }
             self.game = Some((id, r));
+            self.game_revision += 1;
         }
         self.game.as_ref().unwrap().1.as_ref()
     }
@@ -134,27 +149,45 @@ impl AppState {
     pub fn toast(&mut self, s: impl Into<String>) { self.toasts.push((s.into(), 5.0)); }
 
     pub fn open(&mut self, dir: PathBuf) {
+        if !self.save_pending() { return; }
         match crate::projects::load(&dir) {
             Ok(p) => {
+                self.ws = Workspace::for_project(&p);
+                self.settings.workspace = self.ws.key().into();
+                self.assembly = Default::default();
+                self.sim_rev = u64::MAX;
                 self.doc = Doc::new(p);
                 self.kept = crate::ui::analyze::load_kept(&dir);
                 self.settings.remember(&dir);
                 self.dir = Some(dir);
                 self.sel = Selection::Robot;
-                self.ws = Workspace::Build;
                 self.toast(format!("Opened {}", self.doc.project.name));
             }
             Err(e) => self.toast(format!("Could not open {}: {e}", dir.display())),
         }
     }
     pub fn start_new(&mut self, p: Project) {
+        if !self.save_pending() { return; }
+        self.ws = Workspace::for_project(&p);
+        self.settings.workspace = self.ws.key().into();
+        self.assembly = Default::default();
+        self.sim_rev = u64::MAX;
         let dir = crate::projects::fresh_dir(&self.settings.projects_dir, &p.name);
         self.doc = Doc::new(p);
+        self.kept.clear();
         self.dir = Some(dir.clone());
         self.save();
         self.settings.remember(&dir);
-        self.sel = Selection::Robot;
-        self.ws = Workspace::Build;
+        self.sel = if self.doc.project.archetype {
+            self.doc.project.robot.mechanisms.first().map_or(Selection::Robot, |m| Selection::Mechanism(m.id))
+        } else { Selection::Robot };
+    }
+    fn save_pending(&mut self) -> bool {
+        if self.dir.is_some() && self.doc.dirty {
+            self.save();
+            return !self.doc.dirty;
+        }
+        true
     }
     pub fn save(&mut self) {
         let Some(d) = self.dir.clone() else { return };

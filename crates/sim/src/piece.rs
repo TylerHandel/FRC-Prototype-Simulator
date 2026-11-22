@@ -13,6 +13,8 @@ pub const BIT_SOFT: u32 = 16;
 pub const BIT_FIELD: u32 = 32;
 /// a hollow piece's walls, which only the field sees (a branch goes up inside it)
 pub const BIT_HOLLOW: u32 = 64;
+/// Robot panels too wide to pass through any tube in this library.
+pub const BIT_PANEL: u32 = 128;
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum Shape {
@@ -85,7 +87,11 @@ impl PieceKind {
         match self.shape {
             Shape::Sphere { r } => len(p) - r,
             Shape::Tube { r, half, .. } | Shape::Cylinder { r, half } => {
-                let dr = (p[0] * p[0] + p[1] * p[1]).sqrt() - r;
+                let radius = p[0].hypot(p[1]);
+                let dr = match self.shape {
+                    Shape::Tube { r_in, .. } => (radius - r).max(r_in - radius),
+                    _ => radius - r,
+                };
                 let dz = p[2].abs() - half;
                 let out = (dr.max(0.0).powi(2) + dz.max(0.0).powi(2)).sqrt();
                 out + dr.max(dz).min(0.0)
@@ -111,6 +117,44 @@ impl PieceKind {
                 norm(g)
             }
         }
+    }
+
+    /// Distance by which a compliant wheel's undeflected rim passes its first contact.
+    /// The rim can extend past a thin pipe wall while the compressed tread stays outside.
+    pub fn wheel_penetration(&self, center: V3, rim: V3) -> f64 {
+        let Shape::Tube { r, r_in, half } = self.shape else { return -self.sdf_local(rim) };
+        if center[0].hypot(center[1]) >= r && center[2].abs() <= half {
+            // Against the exterior, compression is normal to the wall. Wheel material
+            // extending past the inside radius still loads the outer surface.
+            return (r-rim[0].hypot(rim[1])).min(half-rim[2].abs());
+        }
+        self.tube_overlap(center, rim, r, r_in, half)
+    }
+
+    /// Portion of a segment left after its first intersection with the annular wall.
+    pub fn tube_overlap(&self, center: V3, rim: V3, r: f64, r_in: f64, half: f64) -> f64 {
+        let d = sub(rim, center);
+        // Parameter along the radius, 0 at the wheel centre and 1 at the rim.
+        let radial_interval = |radius: f64| -> Option<(f64, f64)> {
+            let a = d[0]*d[0] + d[1]*d[1];
+            let b = center[0]*d[0] + center[1]*d[1];
+            let c = center[0]*center[0] + center[1]*center[1] - radius*radius;
+            if a < 1e-16 { return (c <= 0.).then_some((f64::NEG_INFINITY, f64::INFINITY)); }
+            let disc = b*b - a*c;
+            (disc >= 0.).then(|| ((-b-disc.sqrt())/a, (-b+disc.sqrt())/a))
+        };
+        let Some((mut enter, mut leave)) = radial_interval(r) else { return 0. };
+        if d[2].abs() > 1e-10 {
+            let z0 = (-half-center[2])/d[2];
+            let z1 = (half-center[2])/d[2];
+            enter = enter.max(z0.min(z1));
+            leave = leave.min(z0.max(z1));
+        } else if center[2].abs() > half { return 0.; }
+        enter = enter.max(0.);
+        if let Some((inner_in, inner_out)) = radial_interval(r_in) {
+            if enter >= inner_in && enter < inner_out { enter = inner_out; }
+        }
+        if enter < leave && enter < 1. { (1.-enter)*len(d) } else { 0. }
     }
 
     /// The surface's curvature (1/m) at a point near it (own frame), along a direction `t` that
@@ -180,9 +224,10 @@ impl PieceKind {
         // units; MuJoCo's soft contact only for the carpet, the field and other pieces
         let col = if self.soft() { format!("contype=\"{BIT_SOFT}\" conaffinity=\"{}\"", BIT_CARPET | BIT_PIECE | BIT_FIELD | BIT_SOFT) }
             else { format!("contype=\"{BIT_PIECE}\" conaffinity=\"{}\"", BIT_CARPET | BIT_ROBOT | BIT_PIECE | BIT_FIELD | BIT_SOFT) };
-        // a hollow tube: round outside for the robot, the carpet and other pieces; walls for the field
-        let solid = format!("contype=\"{BIT_PIECE}\" conaffinity=\"{}\"", BIT_CARPET | BIT_ROBOT | BIT_PIECE | BIT_SOFT);
-        let walls = format!("contype=\"{BIT_HOLLOW}\" conaffinity=\"{BIT_FIELD}\"");
+        // Smooth rolling against the floor and broad panels. Branches, slender robot
+        // components and other game pieces contact the hollow wall.
+        let solid = format!("contype=\"0\" conaffinity=\"{}\"", BIT_CARPET | BIT_PANEL);
+        let walls = format!("contype=\"{BIT_HOLLOW}\" conaffinity=\"{}\"", BIT_FIELD | BIT_ROBOT | BIT_PIECE | BIT_SOFT | BIT_HOLLOW);
         let soft = match self.law { Law::Rigid => "", _ => " solref=\"0.02 0.5\"" };
         let geoms = match self.shape {
             Shape::Sphere { r } => format!("<geom type=\"sphere\" size=\"{r}\" mass=\"{}\" {fr} {col}{soft}/>", self.mass),
@@ -230,10 +275,13 @@ mod tests {
     fn coral_sdf_and_curvature() {
         let lib = library::Library::builtin();
         let c = PieceKind::from_library(lib.piece("coral-2025").unwrap());
-        let Shape::Tube { r, half, .. } = c.shape else { panic!() };
+        let Shape::Tube { r, r_in, half } = c.shape else { panic!() };
         assert!((c.sdf_local([r + 0.01, 0.0, 0.0]) - 0.01).abs() < 1e-9);
-        assert!((c.sdf_local([0.0, 0.0, half + 0.02]) - 0.02).abs() < 1e-9);
-        assert!(c.sdf_local([0.0, 0.0, 0.0]) < 0.0);
+        assert!((c.sdf_local([(r + r_in) * 0.5, 0.0, half + 0.02]) - 0.02).abs() < 1e-9);
+        assert!((c.sdf_local([0.0, 0.0, 0.0]) - r_in).abs() < 1e-9);
+        assert!(c.sdf_local([(r + r_in) * 0.5, 0.0, 0.0]) < 0.0);
+        assert!((c.wheel_penetration([r+0.02,0.,0.], [r-0.01,0.,0.])-0.01).abs() < 1e-9);
+        assert_eq!(c.wheel_penetration([0.,0.,half+0.01], [0.,0.,half-0.01]), 0.);
         let g = c.grad_local([r + 0.01, 0.0, 0.0]);
         assert!((g[0] - 1.0).abs() < 1e-6);
         // curvature: 1/r round the pipe, 0 along it

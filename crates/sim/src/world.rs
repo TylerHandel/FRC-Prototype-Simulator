@@ -28,7 +28,12 @@ pub enum Mode {
     Field,
     /// the robot free on bare carpet (Build)
     Carpet,
+    /// archetype practice on carpet with a replaceable game piece
+    TestDrive,
 }
+
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
+pub enum TubeOrientation { #[default] Crosswise, EndOn, Upright }
 
 /// What to build besides the robot.
 #[derive(Debug, Clone)]
@@ -96,7 +101,7 @@ struct DriveRt { id: Id, name: String, motor: Motor, target: Target, control: Co
 struct ShaftRt { id: Id, omega: f64, angle: f64, inertia: f64, drag: f64, torque: f64 }
 
 #[derive(Debug, Clone)]
-struct RollerRt { id: Id, shaft: usize, ratio: f64, link: usize, center: V3, axis: V3, surface: RollerSurface, full: bool, wheel: String, radius: f64 }
+struct RollerRt { id: Id, shaft: usize, ratio: f64, link: usize, center: V3, axis: V3, surface: RollerSurface, friction: Vec<(f64, f64)>, full: bool, wheel: String, radius: f64 }
 
 #[derive(Debug, Clone)]
 struct HolderRt { link: usize, pose: Pose, release: Release, piece: Option<usize> }
@@ -118,7 +123,7 @@ pub struct SensorSnap { pub name: String, pub on: bool, pub beam: Option<[V3; 2]
 pub enum PieceWhere { Free, Held { mech: Id }, Scored, Parked }
 
 #[derive(Debug, Clone)]
-struct PieceRt { kind: usize, jnt: usize, body: usize, at: PieceWhere, shown: Pose, park: V3, soft_geom: Option<usize> }
+struct PieceRt { kind: usize, jnt: usize, body: usize, at: PieceWhere, counted_on_field: bool, shown: Pose, park: V3, soft_geom: Option<usize> }
 
 #[derive(Debug, Clone)]
 struct FeederRt { last: f64 }
@@ -128,16 +133,31 @@ struct FeederRt { last: f64 }
 pub struct LinkSnap { pub id: Id, pub pose: Pose }
 
 #[derive(Debug, Clone, serde::Serialize)]
-pub struct PieceSnap { pub kind: String, pub pose: Pose, pub held: bool, pub scored: bool }
+pub struct PieceSnap { pub index: usize, pub kind: String, pub pose: Pose, pub held: bool, pub scored: bool }
 
 #[derive(Debug, Clone, Copy, serde::Serialize)]
 pub struct DriveSnap { pub id: Id, pub volts: f64, pub current: f64, pub supply: f64, pub position: f64, pub speed: f64, pub target: f64, pub limited: bool }
 
 #[derive(Debug, Clone, Copy, serde::Serialize)]
-pub struct ContactSnap { pub point: V3, pub normal: V3, pub force: f64, pub sliding: bool, pub roller: Id }
+pub struct ContactSnap { pub piece: usize, pub tread_share: f64, pub point: V3, pub normal: V3, pub force: f64, pub sliding: bool, pub roller: Id }
 
 #[derive(Debug, Clone, Copy, serde::Serialize)]
-pub struct RollerSnap { pub id: Id, pub center: V3, pub axis: V3, pub angle: f64, pub speed: f64 }
+pub struct RollerSnap { pub zero: V3, pub id: Id, pub center: V3, pub axis: V3, pub angle: f64, pub speed: f64 }
+
+#[derive(Debug, Clone, Copy)]
+struct ReefTarget { right: bool, branch: V3, heading: f64 }
+
+impl ReefTarget {
+    fn error(self, robot: &Robot, position: Option<Id>, pos: V3, yaw: f64) -> V3 {
+        let front = robot.frame.length * 0.5 + robot.frame.bumper_thickness + robot.controls.reef_gap(position);
+        let turn = self.heading - yaw;
+        [self.branch[0] - front*self.heading.cos() - pos[0], self.branch[1] - front*self.heading.sin() - pos[1],
+         turn.sin().atan2(turn.cos())]
+    }
+}
+
+#[derive(Debug, Clone, Copy, serde::Serialize)]
+pub struct AlignmentSnap { pub right: bool, pub distance: f64, pub heading_error: f64 }
 
 /// Everything a view needs to draw and plot one moment (D15).
 #[derive(Debug, Clone, serde::Serialize)]
@@ -162,6 +182,8 @@ pub struct Snapshot {
     pub match_time: f64,
     pub phase: String,
     pub sensors: Vec<SensorSnap>,
+    pub active_position: Option<Id>,
+    pub reef_alignment: Option<AlignmentSnap>,
 }
 
 pub struct World {
@@ -169,7 +191,10 @@ pub struct World {
     pub lib: Library,
     pub project: Project,
     pub scene: Scene,
-    pub game: Option<GamePack>,
+    pub game: Option<std::sync::Arc<GamePack>>,
+    active_position: Option<Id>,
+    reef_target: Option<ReefTarget>,
+    reef_velocity: V3,
     pub dt: f64,
     pub time: f64,
     pub cmd: Commands,
@@ -188,17 +213,19 @@ pub struct World {
     pieces: Vec<PieceRt>,
     feeders: Vec<FeederRt>,
     drive: Option<swerve::Drive>,
+    field_wheels: Vec<usize>,
     root_body: usize,
     root_joint: Option<usize>,
     bristles: Bristles,
     contacts: Vec<SliceContact>,
-    contact_rollers: Vec<Id>,
+    contact_bodies: Vec<(Id, usize)>,
+    roller_load: Vec<f64>,
     robot_bodies: Vec<usize>,
     /// (geom, link) for the robot's solid shapes
     robot_geoms: Vec<(usize, usize)>,
     sensors: Vec<SensorRt>,
     /// how long each free piece has sat still by a seat
-    settle: HashMap<usize, f64>,
+    settle: HashMap<usize, (usize, f64)>,
 }
 
 fn f(v: f64) -> String { let s = format!("{v:.6}"); let s = s.trim_end_matches('0').trim_end_matches('.').to_string(); if s == "-0" || s.is_empty() { "0".into() } else { s } }
@@ -245,7 +272,11 @@ fn link_inertia(shapes: &[Shape], mass: f64, fallback_com: V3) -> (V3, [f64; 9])
 
 impl World {
     pub fn new(project: &Project, lib: &Library, scene: Scene) -> anyhow::Result<World> {
-        let game = if scene.mode == Mode::Field { scene.game.clone().or_else(|| GamePack::builtin(&project.game)) } else { None };
+        let game = match scene.mode {
+            Mode::Field => scene.game.clone().or_else(|| GamePack::builtin(&project.game)),
+            Mode::TestDrive => scene.game.clone(),
+            _ => None,
+        };
         let r = &project.robot;
         let issues = model::validate::issues(r, lib);
         if let Some(e) = issues.iter().find(|i| i.severity == model::validate::Severity::Error) {
@@ -276,9 +307,10 @@ impl World {
         }
         if !assets.is_empty() { let _ = write!(x, "<asset>{assets}</asset>"); }
         x.push_str("<worldbody>");
-        let carpet_mu = game.as_ref().map_or(1.0, |g| g.field.carpet_friction);
+        let environment = scene.game.as_ref().or(game.as_ref());
+        let carpet_mu = environment.map_or(1.0, |g| g.field.carpet_friction);
         let _ = write!(x, "<geom name=\"carpet\" type=\"plane\" size=\"40 40 0.1\" friction=\"{carpet_mu} 0.005 0.0001\" contype=\"{BIT_CARPET}\" conaffinity=\"0\" rgba=\"0.2 0.2 0.22 1\"/>");
-        if let Some(g) = &game {
+        if let Some(g) = environment {
             for (i, s) in g.statics.iter().enumerate() {
                 if s.ghost { continue; }
                 let q = euler_to_quat(s.euler_deg.map(f64::to_radians));
@@ -314,8 +346,8 @@ impl World {
             if let DriveTarget::Joint { joint, .. } = d.target { *armature.entry(joint).or_default() += mo.reflected_inertia(); }
             motors.insert(d.id, mo);
         }
-        let weighed = r.weighed_mass.map(|w| w / r.mass().max(1e-6)).unwrap_or(1.0);
-        fn body(x: &mut String, r: &Robot, id: Id, parent_origin: V3, children: &HashMap<Id, Vec<Id>>, armature: &HashMap<Id, f64>, origin_of: &dyn Fn(Id) -> V3, scene: &Scene, weighed: f64) {
+        let weighed = r.mass_scale();
+        fn body(x: &mut String, r: &Robot, id: Id, parent_origin: V3, children: &HashMap<Id, Vec<Id>>, armature: &HashMap<Id, f64>, origin_of: &dyn Fn(Id) -> V3, scene: &Scene, weighed: f64, bore_diameter: f64) {
             let l = r.link(id).unwrap();
             let o = origin_of(id);
             let rel = sub(o, parent_origin);
@@ -356,6 +388,10 @@ impl World {
                     _ => (BIT_ROBOT, BIT_CARPET | BIT_PIECE | BIT_FIELD, 0.5),
                 };
                 let color = s.color.clone().unwrap_or_else(|| l.color.clone());
+                let ct = if ct == BIT_ROBOT && matches!(&s.kind, ShapeKind::Box { size }
+                    if size.iter().filter(|&&d| d > bore_diameter).count() >= 2) {
+                    crate::piece::BIT_PANEL
+                } else { ct };
                 let _ = write!(x, "<geom name=\"g{id}_{si}\" type=\"{t}\" {size} pos=\"{}\" quat=\"{}\" contype=\"{ct}\" conaffinity=\"{ca}\" friction=\"{fr} 0.005 0.0001\" rgba=\"{}\" mass=\"0\"/>",
                     v3(sub(s.pose.pos, o)), q4(s.pose.quat), rgba(&color, 1.0));
             }
@@ -369,11 +405,14 @@ impl World {
                 }
             }
             if let Some(cs) = children.get(&id) {
-                for &c in cs { body(x, r, c, o, children, armature, origin_of, scene, weighed); }
+                for &c in cs { body(x, r, c, o, children, armature, origin_of, scene, weighed, bore_diameter); }
             }
             let _ = write!(x, "</body>");
         }
-        body(&mut x, r, CHASSIS, [0.0; 3], &children, &armature, &origin_of, &scene, weighed);
+        let bore_diameter = lib.pieces.iter().filter_map(|p| match p.shape {
+            library::PieceShape::Tube { inner_d_in, .. } => Some(inner_d_in * library::IN), _ => None,
+        }).fold(0., f64::max);
+        body(&mut x, r, CHASSIS, [0.0; 3], &children, &armature, &origin_of, &scene, weighed, bore_diameter);
 
         // pieces
         let mut kinds: Vec<PieceKind> = Vec::new();
@@ -485,15 +524,25 @@ impl World {
             // the Bench is for contact: every roller touches there (D3)
             let full = scene.mode == Mode::Bench || r.mechanism_of_link(link_id).is_none_or(|m| project.fidelity(m) == Fidelity::Full);
             let surface_kind = match wheel.build { library::WheelBuild::Omni => RollerKind::Omni, library::WheelBuild::Mecanum => RollerKind::Mecanum, _ => x.kind };
-            // the pieces' surface: the most common one this scene has
-            let surf = kinds.first().map_or("pvc".to_string(), |k| k.surface.clone());
-            let (mu_s, mu_k) = lib.friction(&wheel.tread, &surf);
-            let surface = RollerSurface { radius, width: x.width, k_area: wheel.k_area(), mu_static: mu_s, mu_sliding: mu_k, kind: surface_kind, loss: 0.2, slices: RollerSurface::slices_for(x.width) };
+            let edits = r.mechanism_of_link(link_id).and_then(|m| m.template.as_ref())
+                .filter(|_| scene.wheel_override.is_none()).map(|t| t.wheel_edits.clone()).unwrap_or_default();
+            let section = library::profile::Section::new(wheel, &edits);
+            let k_area = section.stiffness(wheel, &edits);
+            let mean_support = section.mean_support();
+            let section = (section.cad.is_some() || section.irregular).then(|| std::sync::Arc::new(section));
+            let friction = kinds.iter().map(|k| {
+                if k.surface == "pvc" && let Some([s, d]) = edits.pvc_friction {
+                    return (s.max(0.), d.clamp(0., s.max(0.)));
+                }
+                lib.friction(&wheel.tread, &k.surface)
+            }).collect::<Vec<_>>();
+            let (mu_s, mu_k) = friction.first().copied().unwrap_or((0., 0.));
+            let surface = RollerSurface { section, mean_support, radius, width: x.width, k_area, mu_static: mu_s, mu_sliding: mu_k, kind: surface_kind, loss: 0.2, slices: RollerSurface::slices_for(x.width) };
             // the roller's own inertia: a wheel of about this mass
             let m_w = 0.12 * (radius / 0.0508).powi(2) * (x.width / 0.0254).max(0.5);
             shafts[si].inertia += 0.5 * m_w * radius * radius * x.ratio * x.ratio;
             let o = origin_of(link_id);
-            rollers.push(RollerRt { id: x.id, shaft: si, ratio: x.ratio, link: li(link_id), center: sub(x.center, o), axis: norm(x.axis), surface, full, wheel: wheel_id, radius });
+            rollers.push(RollerRt { id: x.id, shaft: si, ratio: x.ratio, link: li(link_id), center: sub(x.center, o), axis: norm(x.axis), surface, friction, full, wheel: wheel_id, radius });
         }
         let mut drives = Vec::new();
         for d in &r.drives {
@@ -518,7 +567,7 @@ impl World {
             let full = scene.mode == Mode::Bench || project.fidelity(m) == Fidelity::Full;
             let pickup = m.pickup.as_ref().map(|p| {
                 let o = origin_of(p.link);
-                (li(p.link), Pose::at(sub(p.center, o)), p.size, p.drive, p.pieces.clone(), p.acquire_time)
+                (li(p.link), Pose::new(sub(p.center, o), p.quat), p.size, p.drive, p.pieces.clone(), p.acquire_time)
             });
             let holders = m.holders.iter().map(|h| {
                 let o = origin_of(h.link);
@@ -531,11 +580,12 @@ impl World {
             let body = engine.id(Obj::Body, &format!("p{i}")).unwrap();
             let parked = s.pos[2] < -10.0;
             let geom = if kinds[piece_kind_idx[i]].soft() { (0..engine.ngeom()).find(|g| engine.geom_body(*g) == body) } else { None };
-            PieceRt { kind: piece_kind_idx[i], jnt, body, at: if parked { PieceWhere::Parked } else { PieceWhere::Free }, shown: Pose::new(s.pos, s.quat), park: [200.0 + 3.0 * i as f64, 200.0, -20.0], soft_geom: geom }
+            // The carpet is an infinite collision plane. Store dormant bodies clear of it.
+            PieceRt { kind: piece_kind_idx[i], jnt, body, at: if parked { PieceWhere::Parked } else { PieceWhere::Free }, counted_on_field: false, shown: Pose::new(s.pos, s.quat), park: [200.0 + 3.0 * i as f64, 200.0, 2.0 + kinds[piece_kind_idx[i]].bound()], soft_geom: geom }
         }).collect();
         for (i, s) in spawns.iter().enumerate() { engine.set_free(pieces[i].jnt, if pieces[i].at == PieceWhere::Parked { pieces[i].park } else { s.pos }, s.quat, s.lin, s.ang); }
         let drive = match (&r.drivetrain, scene.mode) {
-            (Some(d), Mode::Field | Mode::Carpet) => {
+            (Some(d), Mode::Field | Mode::Carpet | Mode::TestDrive) => {
                 let m = lib.motor(&d.motor).ok_or_else(|| anyhow::anyhow!("no motor {}", d.motor))?;
                 let wheel_r = lib.wheel(&d.wheel).map_or(0.0508, |w| w.radius());
                 let mo = Motor::new(m.constants(), 1.0, d.ratio, 0.93, d.stator_limit, d.supply_limit);
@@ -543,6 +593,9 @@ impl World {
             }
             _ => None,
         };
+        let field_wheels = if environment.is_some() {
+            drive.iter().flat_map(|d| 0..d.pts.len()).map(|i| engine.id(Obj::Geom, &format!("wheel{i}")).unwrap()).collect()
+        } else { vec![] };
         // the step must resolve the stiffest roller contact (D4)
         for x in &rollers {
             if !x.full { continue; }
@@ -567,11 +620,131 @@ impl World {
             }
         }
         Ok(World {
-            engine, lib: lib.clone(), project: project.clone(), scene, game, dt, time: 0.0, cmd, bus: Bus::new(r.electrical.clone()),
+            engine, lib: lib.clone(), project: project.clone(), scene, game: game.map(std::sync::Arc::new), dt, time: 0.0, cmd, bus: Bus::new(r.electrical.clone()),
+            active_position: r.starting_preset().map(|p| p.id), reef_target: None, reef_velocity: [0.;3],
             warnings, matched: Match { filled: vec![0; n_zones], ..Default::default() }, mjcf,
-            links, joints, drives, shafts, rollers, mechs, kinds, pieces, feeders, drive, root_body, root_joint,
-            bristles: Bristles::new(), contacts: vec![], contact_rollers: vec![], robot_bodies, robot_geoms, sensors, settle: HashMap::new(),
+            roller_load: vec![0.; pieces.len()],
+            links, joints, drives, shafts, rollers, mechs, kinds, pieces, feeders, drive, field_wheels, root_body, root_joint,
+            bristles: Bristles::new(), contacts: vec![], contact_bodies: vec![], robot_bodies, robot_geoms, sensors, settle: HashMap::new(),
         })
+    }
+
+    pub fn test_drive(project: &Project, lib: &Library, selected: &str) -> anyhow::Result<Self> {
+        Self::practice(project, lib, selected, None)
+    }
+
+    pub fn practice(project: &Project, lib: &Library, selected: &str, field: Option<&GamePack>) -> anyhow::Result<Self> {
+        // MuJoCo body shapes are fixed at compile time. Keep one body of each kind off
+        // the carpet so changing the piece leaves the live drivetrain and controllers alone.
+        let mut scene = field.map_or_else(Scene::carpet, Scene::field);
+        scene.mode = Mode::TestDrive;
+        scene.game_pieces = false;
+        if let Some(start) = field.and_then(|g| g.practice_start.as_ref()) {
+            scene.start = [start.pos[0], start.pos[1], start.yaw_deg.to_radians()];
+        }
+        scene.pieces = lib.pieces.iter().map(|p| Spawn {
+            piece: p.id.clone(), pos: [0.0, 0.0, -50.0], quat: QI, lin: [0.0; 3], ang: [0.0; 3],
+        }).collect();
+        let mut project = project.clone();
+        let fidelity_override = project.force_fidelity.take();
+        for m in &mut project.robot.mechanisms {
+            m.fidelity = match m.kind {
+                MechKind::Claw | MechKind::Intake => Fidelity::Full,
+                _ => fidelity_override.unwrap_or(m.fidelity),
+            };
+        }
+        if let Some(preset) = project.robot.starting_preset() {
+            for (joint, value) in project.robot.position_targets(preset) {
+                if let Some(j) = project.robot.joint_mut(joint) { j.initial = value; }
+            }
+        }
+        let mut world = Self::new(&project, lib, scene)?;
+        if !lib.pieces.is_empty() {
+            anyhow::ensure!(world.place_practice_piece(selected), "Unknown practice piece '{selected}'");
+        }
+        Ok(world)
+    }
+
+    pub fn place_practice_piece(&mut self, id: &str) -> bool {
+        self.place_piece(id, TubeOrientation::Crosswise, None)
+    }
+
+    /// Place one free body on the carpet or present it to the mouth of a moving claw.
+    pub fn place_piece(&mut self, id: &str, tube: TubeOrientation, claw: Option<Id>) -> bool {
+        if self.scene.mode != Mode::TestDrive { return false; }
+        let Some(active) = self.pieces.iter().position(|p| self.kinds[p.kind].id == id) else { return false };
+        // A placement can arrive between steps. Read the integrated pose, including the last turn.
+        self.engine.forward();
+        let chassis = self.chassis_pose();
+        let yaw = quat_to_euler(chassis.quat)[2];
+        let forward = [yaw.cos(), yaw.sin(), 0.0];
+        let along = |pos| dot(sub(pos, chassis.pos), forward);
+        let bumper = self.project.robot.frame.length / 2.0 + self.project.robot.frame.bumper_thickness;
+        let mut reach = bumper;
+        for &(g, _) in &self.robot_geoms {
+            reach = reach.max(along(self.engine.geom_pos(g)) + self.engine.geom_rbound(g));
+        }
+        for r in &self.rollers {
+            reach = reach.max(along(self.link_pose(r.link).apply(r.center)) + r.radius);
+        }
+        let kind = &self.kinds[self.pieces[active].kind];
+        let (height, resting) = match (kind.shape, tube) {
+            (crate::piece::Shape::Tube { half, .. }, TubeOrientation::Upright) => (half, QI),
+            (crate::piece::Shape::Tube { r, .. }, TubeOrientation::EndOn) => (r, axis_angle([0., 1., 0.], std::f64::consts::FRAC_PI_2)),
+            _ => kind.resting(),
+        };
+        let mut pos = add(chassis.pos, scale(forward, reach + kind.bound() + 0.25));
+        pos[2] = height + 0.002;
+        let orientation = qmul(axis_angle([0.0, 0.0, 1.0], yaw), resting);
+        let mut velocity = [0.0; 3];
+        if let Some(id) = claw {
+            let Some(mech) = self.project.robot.mechanism(id).filter(|m| m.kind == MechKind::Claw) else { return false };
+            let Some(pickup) = self.mechs.iter().find(|m| m.id == id).and_then(|m| m.pickup.as_ref()) else { return false };
+            let link = self.link_pose(pickup.0);
+            let mouth = link.mul(&pickup.1);
+            let outward = mouth.rotate([1., 0., 0.]);
+            let mut plane = 0.0;
+            let mut count = 0;
+            for roller in self.rollers.iter().filter(|r| mech.links.contains(&self.links[r.link].id)) {
+                plane += dot(sub(self.link_pose(roller.link).apply(roller.center), mouth.pos), outward);
+                count += 1;
+            }
+            if count == 0 { return false; }
+            let local = Pose::new([0.; 3], orientation).inverse().rotate(outward);
+            let extent = match kind.shape {
+                crate::piece::Shape::Tube { r, half, .. } | crate::piece::Shape::Cylinder { r, half } =>
+                    half * local[2].abs() + r * local[0].hypot(local[1]),
+                crate::piece::Shape::Sphere { r } => r,
+                crate::piece::Shape::Box { half } => dot(half, local.map(f64::abs)),
+            };
+            pos = add(mouth.pos, scale(outward, plane / f64::from(count) + extent));
+            // A hand feed ends here. From this instant only inertia, gravity and contact act.
+            velocity = sub(self.engine.velocity_at(self.links[pickup.0].body, pos).0, scale(outward, 0.65));
+        }
+
+        for mech in &mut self.mechs {
+            mech.dwell.clear();
+            for holder in &mut mech.holders { holder.piece = None; }
+        }
+        self.bristles.clear();
+        self.settle.clear();
+        self.matched.filled.fill(0);
+        self.contacts.clear();
+        self.contact_bodies.clear();
+        for (i, p) in self.pieces.iter_mut().enumerate() {
+            p.counted_on_field = false;
+            if i == active {
+                p.at = PieceWhere::Free;
+                p.shown = Pose::new(pos, orientation);
+            } else {
+                p.at = PieceWhere::Parked;
+                p.shown = Pose::at(p.park);
+            }
+            self.engine.set_free(p.jnt, p.shown.pos, p.shown.quat, if i == active { velocity } else { [0.0; 3] }, [0.0; 3]);
+        }
+        self.engine.forward();
+        if !self.sensors.is_empty() { self.read_sensors(); }
+        true
     }
 
     fn link_pose(&self, li: usize) -> Pose {
@@ -582,6 +755,7 @@ impl World {
     /// Copies what it can from an older world after an edit (D: edit while it runs): the robot's
     /// place, joint positions, roller speeds and the pieces.
     pub fn carry_from(&mut self, old: &World) {
+        self.active_position = old.active_position.filter(|id| self.project.robot.controls.presets.iter().any(|p| p.id == *id));
         if let (Some(a), Some(b)) = (self.root_joint, old.root_joint) {
             let (p, q) = old.engine.free_pose(b);
             let (lv, av) = old.engine.free_vel(b);
@@ -605,6 +779,19 @@ impl World {
                 self.engine.set_free(p.jnt, pos, q, lv, av);
                 p.at = if matches!(o.at, PieceWhere::Held { .. }) { PieceWhere::Free } else { o.at };
                 p.shown = o.shown;
+                p.counted_on_field = o.counted_on_field;
+                if self.scene.mode == Mode::TestDrive && let PieceWhere::Held { mech } = o.at {
+                    let slot = old.mechs.iter().find(|m| m.id == mech)
+                        .and_then(|m| m.holders.iter().position(|h| h.piece == Some(i)));
+                    let holder = self.mechs.iter_mut().find(|m| m.id == mech && !m.full)
+                        .and_then(|m| m.holders.get_mut(slot?));
+                    if let Some(holder) = holder {
+                        holder.piece = Some(i);
+                        p.at = o.at;
+                    } else {
+                        self.engine.set_free(p.jnt, o.shown.pos, o.shown.quat, [0.0; 3], [0.0; 3]);
+                    }
+                }
             }
         }
         self.cmd = old.cmd.clone();
@@ -629,6 +816,7 @@ impl World {
             match &bind.action {
                 Action::Preset { preset } if down => {
                     if let Some(p) = self.project.robot.controls.presets.iter().find(|p| p.id == *preset) {
+                        self.active_position = Some(p.id);
                         for t in &p.targets { self.cmd.targets.insert(t.drive, t.value); }
                     }
                 }
@@ -646,6 +834,24 @@ impl World {
                 Action::Release { mechanism } if down => self.cmd.release.push(*mechanism),
                 _ => {}
             }
+        }
+    }
+
+    pub fn reef_align(&mut self, right: bool, down: bool) {
+        if !down {
+            if self.reef_target.is_some_and(|t| t.right == right) { self.reef_target = None; }
+            return;
+        }
+        if self.scene.mode != Mode::TestDrive { return; }
+        let Some(game) = &self.game else { return };
+        let robot = self.chassis_pose();
+        let dist = |f: &crate::game::ReefFace| (f.center[0]-robot.pos[0]).hypot(f.center[1]-robot.pos[1]);
+        if let Some(face) = game.reef_faces.iter().min_by(|a,b| dist(a).total_cmp(&dist(b))) {
+            // Both Test drive views look downfield from the blue driver station.
+            let (branch, yaw) = face.branch(0.0, right);
+            self.reef_target = Some(ReefTarget { right, branch, heading: yaw });
+            let (lin, ang) = self.engine.velocity_at(self.root_body,robot.pos);
+            self.reef_velocity = [lin[0],lin[1],ang[2]];
         }
     }
 
@@ -684,12 +890,17 @@ impl World {
         }
 
         // ---- concept pickups and held pieces ----
-        self.concept();
+        if self.concept() {
+            // A body just moved between its holder and the physical world. Recompute
+            // contacts at that pose before the force solve in step2.
+            self.engine.begin_step();
+        }
 
         // ---- roller contact ----
+        self.roller_load.fill(0.);
         for s in &mut self.shafts { s.torque = 0.0; }
         self.contacts.clear();
-        self.contact_rollers.clear();
+        self.contact_bodies.clear();
         let mut out = Vec::new();
         for ri in 0..self.rollers.len() {
             let rl = &self.rollers[ri];
@@ -700,15 +911,17 @@ impl World {
             let b = self.links[rl.link].body;
             let (lv, av) = self.engine.velocity_at(b, c);
             let spin = self.shafts[rl.shaft].omega * rl.ratio;
-            let rs = RollerState { center: c, axis: a, spin, lin: lv, ang: av };
+            let zero = lp.rotate(qrot(quat_from_to([0.,1.,0.], rl.axis), [1.,0.,0.]));
+            let rs = RollerState { zero, phase: self.shafts[rl.shaft].angle * rl.ratio, center: c, axis: a, spin, lin: lv, ang: av };
             for (pi, p) in self.pieces.iter().enumerate() {
                 if p.at != PieceWhere::Free { continue; }
                 let (pos, q) = self.engine.free_pose(p.jnt);
-                let (lin, _) = self.engine.velocity_at(p.body, pos);
-                let (_, ang) = self.engine.velocity_at(p.body, pos);
+                let (lin, ang) = self.engine.velocity_at(p.body, pos);
                 let ps = contact::PieceState { pos, mat: qmat(q), lin, ang };
                 out.clear();
-                contact::roller_piece(&rl.surface, &rs, &self.kinds[p.kind], &ps, dt, &mut self.bristles, ri as u32, pi as u32, &mut out);
+                let (mu_static, mu_sliding) = rl.friction[p.kind];
+                let surface = RollerSurface { mu_static, mu_sliding, ..rl.surface.clone() };
+                contact::roller_piece(&surface, &rs, &self.kinds[p.kind], &ps, dt, &mut self.bristles, ri as u32, pi as u32, &mut out);
                 for sc in &out {
                     self.engine.push(p.body, sc.force, sc.point);
                     // the roller pushes back on its link, except its turn about its own axis,
@@ -719,7 +932,8 @@ impl World {
                     self.engine.torque(b, scale(a, -axial));
                     self.shafts[rl.shaft].torque += axial * rl.ratio;
                     self.contacts.push(*sc);
-                    self.contact_rollers.push(rl.id);
+                    self.contact_bodies.push((rl.id, pi));
+                    self.roller_load[pi] += sc.normal_force;
                 }
             }
         }
@@ -749,7 +963,7 @@ impl World {
                 self.engine.push(pb, c.force, c.point);
                 self.engine.push(lb, neg(c.force), c.point);
                 self.contacts.push(c);
-                self.contact_rollers.push(0);
+                self.contact_bodies.push((0, pi));
             }
         }
 
@@ -758,13 +972,22 @@ impl World {
             let Target::Shaft { shaft } = self.drives[i].target else { continue };
             let d = &mut self.drives[i];
             let s = &mut self.shafts[shaft];
-            let value = self.cmd.run.get(&d.id).copied().unwrap_or(0.0);
-            let volts = control::shaft_volts(&d.control, &mut d.state, value, s.omega, dt, &d.motor);
+            let command = self.cmd.run.get(&d.id).copied();
+            let value = command.unwrap_or(0.0);
+            let hold = self.project.robot.controls.roller_hold_amps.get(&d.id).copied().unwrap_or(0.0);
+            let holding = command.is_none() && hold != 0.0 && !self.bus.brownout && !self.bus.tripped;
+            let volts = if holding {
+                d.state.integral = 0.0;
+                d.motor.back_emf(s.omega) + hold * d.motor.c.r
+            } else {
+                control::shaft_volts(&d.control, &mut d.state, value, s.omega, dt, &d.motor)
+            };
+            let regulating = holding && volts.abs() < bus_v;
             let volts = if self.bus.brownout || self.bus.tripped { 0.0 } else { volts.clamp(-bus_v, bus_v) };
-            let coast = value == 0.0 && !d.brake;
+            let coast = value == 0.0 && !holding && !d.brake;
             d.out = if coast { Default::default() } else { d.motor.torque(s.omega, volts, bus_v) };
             supply += d.out.supply;
-            let kd = if d.out.limited || coast { 0.0 } else { d.motor.slope() };
+            let kd = if d.out.limited || coast || regulating { 0.0 } else { d.motor.slope() };
             let j = s.inertia.max(1e-7);
             s.omega = (j * s.omega + dt * (d.out.torque + kd * s.omega + s.torque)) / (j + dt * (kd + s.drag));
         }
@@ -789,9 +1012,21 @@ impl World {
             }
             let pose = Pose::new(pos, q);
             let drv = self.drive.as_mut().unwrap();
-            let down: Vec<bool> = drv.pts.iter().map(|p| pose.apply([p[0], p[1], 0.0])[2] < 0.012).collect();
+            let mut down: Vec<bool> = drv.pts.iter().map(|p| pose.apply([p[0], p[1], 0.0])[2] < 0.012).collect();
+            if !self.field_wheels.is_empty() && down.contains(&false) { self.engine.wheel_support(&self.field_wheels, &mut down); }
             let mut c = self.cmd.drive;
-            if self.cmd.field_relative {
+            if let Some(target) = self.reef_target {
+                let [dx,dy,turn] = target.error(&self.project.robot,self.active_position,pos,yaw);
+                let dist = dx.hypot(dy).max(0.001);
+                let gain = 2.3_f64.min(1.5 / dist).min((1.8 / dist).sqrt());
+                let previous = self.reef_velocity;
+                let dv = [dx * gain - previous[0], dy * gain - previous[1]];
+                let slew = (1.4 * dt / dv[0].hypot(dv[1]).max(1e-10)).min(1.);
+                let target_turn = (4.0 * turn).clamp(-2.5, 2.5);
+                c = [previous[0]+slew*dv[0], previous[1]+slew*dv[1], previous[2]+(target_turn-previous[2]).clamp(-4.*dt,4.*dt)];
+                self.reef_velocity = c;
+            }
+            if self.scene.mode == Mode::TestDrive || self.cmd.field_relative {
                 let (cy, sy) = (yaw.cos(), yaw.sin());
                 c = [c[0] * cy + c[1] * sy, -c[0] * sy + c[1] * cy, c[2]];
             }
@@ -821,7 +1056,8 @@ impl World {
 
     /// Concept pickups (D3): a free piece in a running pickup zone is acquired after its dwell time
     /// and parked; held pieces are drawn at their holders and weigh on them.
-    fn concept(&mut self) {
+    fn concept(&mut self) -> bool {
+        let mut relocated = false;
         let release: Vec<Id> = self.cmd.release.clone();
         for mi in 0..self.mechs.len() {
             if self.mechs[mi].full { continue; }
@@ -848,6 +1084,7 @@ impl World {
                     let lin = add(lv, scale(dir, speed));
                     self.engine.set_free(self.pieces[pi].jnt, hp.pos, quat, lin, [0.0; 3]);
                     self.pieces[pi].at = PieceWhere::Free;
+                    relocated = true;
                     self.pieces[pi].shown = Pose::new(hp.pos, quat);
                     self.seat_if_close(pi);
                 }
@@ -878,6 +1115,7 @@ impl World {
                         let h = free_holder.unwrap();
                         self.mechs[mi].holders[h].piece = Some(pi);
                         self.pieces[pi].at = PieceWhere::Held { mech: mid };
+                        relocated = true;
                         if self.game.is_some() { self.matched.log.push(crate::game::Event { time: self.matched.time, what: format!("picked up {}", k.name), points: 0.0 }); }
                         break;
                     }
@@ -903,6 +1141,7 @@ impl World {
                 self.engine.set_free(p.jnt, p.park, QI, [0.0; 3], [0.0; 3]);
             }
         }
+        relocated
     }
 
     /// Concept's scoring assist: a piece let go close enough to a seat is seated and counted.
@@ -943,11 +1182,11 @@ impl World {
         let g = self.game.clone().unwrap();
         // pieces at rest in a zone without a seat (the trough, the PROCESSOR, the NET) count once
         for pi in 0..self.pieces.len() {
-            if self.pieces[pi].at != PieceWhere::Free { continue; }
+            if self.pieces[pi].at != PieceWhere::Free || self.pieces[pi].counted_on_field { continue; }
             let (pos, _) = self.engine.free_pose(self.pieces[pi].jnt);
             let kid = self.kinds[self.pieces[pi].kind].id.clone();
             for (zi, z) in g.zones.iter().enumerate() {
-                if z.seat.is_some() || z.piece != kid || self.matched.filled[zi] >= z.capacity { continue; }
+                if z.seat.is_some() || z.support.is_some() || z.piece != kid || self.matched.filled[zi] >= z.capacity { continue; }
                 if z.contains(pos) {
                     self.score_zone(zi);
                     if let Some(e) = &z.exit {
@@ -965,26 +1204,41 @@ impl World {
         // a piece that comes to rest on a branch (Full: nobody seats it) is scored where it lies
         let mut still = vec![];
         for pi in 0..self.pieces.len() {
-            if self.pieces[pi].at != PieceWhere::Free { continue; }
+            if self.pieces[pi].at != PieceWhere::Free || self.pieces[pi].counted_on_field { continue; }
             let (pos, quat) = self.engine.free_pose(self.pieces[pi].jnt);
             let (lin, ang) = self.engine.velocity_at(self.pieces[pi].body, pos);
             if len(lin) > 0.15 || len(ang) > 1.0 { continue; }
             let kid = &self.kinds[self.pieces[pi].kind].id;
             let near = g.zones.iter().enumerate().find(|(zi, z)| z.piece == *kid && self.matched.filled[*zi] < z.capacity
-                && z.seat.as_ref().is_some_and(|s| len(sub(s.pos, pos)) < SETTLE_REACH));
-            let Some((zi, _)) = near else { continue };
+                && (z.support.is_some() && z.contains(pos) || z.seat.as_ref().is_some_and(|s| len(sub(s.pos, pos)) < SETTLE_REACH
+                    && match self.kinds[self.pieces[pi].kind].shape {
+                        crate::piece::Shape::Tube { r_in, half, .. } => s.threaded(Pose::new(pos, quat), r_in, half),
+                        _ => true,
+                    })));
+            let Some((zi, zone)) = near else { continue };
+            // Sleeping bodies can drop their solver contacts. Once support has been
+            // established, continue the dwell while the same peg is still through the bore.
+            if zone.support.is_some() || zone.seat.as_ref().is_some_and(|s| s.peg_tip.is_some()) {
+                if self.roller_load[pi] > 0.1 { continue; }
+                let contacts = self.engine.contacts_of(self.pieces[pi].body);
+                if contacts.iter().any(|(_, body, _, f)| *f > 0.1 && self.robot_bodies.contains(body)) { continue; }
+                if !self.settle.get(&pi).is_some_and(|(z, _)| *z == zi) && !contacts.iter().any(|(name, _, _, force)| {
+                    *force > 0. && name.strip_prefix('s').and_then(|i| i.parse::<usize>().ok())
+                        .and_then(|i| g.statics.get(i)).is_some_and(|s| zone.support.as_ref().map_or(s.bore, |name| name == &s.name))
+                }) { continue; }
+            }
             still.push(pi);
-            let t = self.settle.entry(pi).or_insert(0.0);
-            *t += dt;
-            if *t >= SETTLE_TIME {
-                self.pieces[pi].at = PieceWhere::Scored;
-                self.pieces[pi].shown = Pose::new(pos, quat);
+            let entry = self.settle.entry(pi).or_insert((zi, 0.));
+            if entry.0 != zi { *entry = (zi, 0.); }
+            entry.1 += dt;
+            if entry.1 >= SETTLE_TIME {
+                self.pieces[pi].counted_on_field = true;
                 self.score_zone(zi);
             }
         }
         self.settle.retain(|k, _| still.contains(k));
         // feeders hand a piece to a robot standing by them
-        if let Some(root) = self.root_joint {
+        if let Some(root) = self.root_joint.filter(|_| self.scene.game_pieces) {
             let (rp, _) = self.engine.free_pose(root);
             for (fi, fd) in g.feeders.iter().enumerate() {
                 if self.time - self.feeders[fi].last < fd.interval { continue; }
@@ -1058,6 +1312,10 @@ impl World {
                     self.pieces.iter().any(|p| {
                         let pose = match p.at { PieceWhere::Free => { let (x, q) = self.engine.free_pose(p.jnt); Pose::new(x, q) }, PieceWhere::Held { .. } => p.shown, _ => return false };
                         let k = &self.kinds[p.kind];
+                        if let crate::piece::Shape::Tube { r, r_in, half } = k.shape {
+                            let local = pose.inverse();
+                            return k.tube_overlap(local.apply(a), local.apply(b), r, r_in, half) > 0.;
+                        }
                         let n = (len(sub(b, a)) / 0.005).ceil().clamp(2.0, 400.0) as usize;
                         (0..=n).any(|s| {
                             let pt = lerp(a, b, s as f64 / n as f64);
@@ -1075,17 +1333,17 @@ impl World {
 
     pub fn snapshot(&self) -> Snapshot {
         let links = self.links.iter().enumerate().map(|(i, l)| LinkSnap { id: l.id, pose: self.link_pose(i) }).collect();
-        let pieces = self.pieces.iter().map(|p| {
+        let pieces = self.pieces.iter().enumerate().filter(|(_, p)| p.at != PieceWhere::Parked).map(|(index, p)| {
             let pose = match p.at {
                 PieceWhere::Free => { let (pos, q) = self.engine.free_pose(p.jnt); Pose::new(pos, q) }
                 _ => p.shown,
             };
-            PieceSnap { kind: self.kinds[p.kind].id.clone(), pose, held: matches!(p.at, PieceWhere::Held { .. }), scored: p.at == PieceWhere::Scored }
+            PieceSnap { index, kind: self.kinds[p.kind].id.clone(), pose, held: matches!(p.at, PieceWhere::Held { .. }), scored: p.at == PieceWhere::Scored || p.counted_on_field }
         }).filter(|p| p.pose.pos[2] > -5.0).collect();
         let rollers = self.rollers.iter().map(|r| {
             let lp = self.link_pose(r.link);
             let s = &self.shafts[r.shaft];
-            RollerSnap { id: r.id, center: lp.apply(r.center), axis: lp.rotate(r.axis), angle: s.angle * r.ratio, speed: s.omega * r.ratio }
+            RollerSnap { zero: lp.rotate(qrot(quat_from_to([0.,1.,0.], r.axis), [1.,0.,0.])), id: r.id, center: lp.apply(r.center), axis: lp.rotate(r.axis), angle: s.angle * r.ratio, speed: s.omega * r.ratio }
         }).collect();
         let drives = self.drives.iter().map(|d| {
             let (position, speed, target) = match d.target {
@@ -1094,7 +1352,7 @@ impl World {
             };
             DriveSnap { id: d.id, volts: d.out.volts, current: d.out.current, supply: d.out.supply, position, speed, target, limited: d.out.limited }
         }).collect();
-        let contacts = self.contacts.iter().zip(&self.contact_rollers).map(|(c, r)| ContactSnap { point: c.point, normal: c.normal, force: c.normal_force, sliding: c.sliding, roller: *r }).collect();
+        let contacts = self.contacts.iter().zip(&self.contact_bodies).map(|(c, &(roller, piece))| ContactSnap { piece, tread_share: c.wheel_depth / c.depth.max(1e-12), point: c.point, normal: c.normal, force: c.normal_force, sliding: c.sliding, roller }).collect();
         let (com, support, tip_margin) = self.tipping();
         let speed = self.root_joint.map_or(0.0, |j| { let (l, _) = self.engine.free_vel(j); (l[0] * l[0] + l[1] * l[1]).sqrt() });
         let phase = self.game.as_ref().map_or("Practice".to_string(), |g| self.matched.phase(&g.timing).to_string());
@@ -1102,6 +1360,12 @@ impl World {
             time: self.time, links, pieces, rollers, drives, contacts, bus_voltage: self.bus.voltage, bus_current: self.bus.current,
             energy: self.bus.energy, brownout: self.bus.brownout, breaker_heat: self.bus.breaker_heat, com, support, tip_margin, speed,
             score: self.matched.score, match_time: self.matched.time, phase,
+            active_position: self.active_position,
+            reef_alignment: self.reef_target.map(|t| {
+                let pose = self.chassis_pose();
+                let [dx,dy,turn] = t.error(&self.project.robot,self.active_position,pose.pos,quat_to_euler(pose.quat)[2]);
+                AlignmentSnap { right: t.right, distance: dx.hypot(dy), heading_error: turn }
+            }),
             sensors: self.sensors.iter().map(|x| SensorSnap { name: x.name.clone(), on: x.on, beam: match x.kind {
                 SensorKind::Beam { link, from, to } => { let lp = self.link_pose(link); Some([lp.apply(from), lp.apply(to)]) }
                 _ => None,
@@ -1157,7 +1421,7 @@ impl World {
     /// stator current of these drives together, A
     pub fn snapshot_drive_currents(&self, ids: &[Id]) -> f64 { self.drives.iter().filter(|d| ids.contains(&d.id)).map(|d| d.out.current).sum() }
     /// the squeeze on pieces this step: the rollers' normal forces together, N
-    pub fn contact_force(&self) -> f64 { self.contacts.iter().zip(&self.contact_rollers).filter(|(_, r)| **r != 0).map(|(c, _)| c.normal_force).sum() }
+    pub fn contact_force(&self) -> f64 { self.contacts.iter().zip(&self.contact_bodies).filter(|(_, bodies)| bodies.0 != 0).map(|(c, _)| c.normal_force).sum() }
     /// (slices touching, slices slipping) this step
     pub fn contact_counts(&self) -> (usize, usize) { (self.contacts.len(), self.contacts.iter().filter(|c| c.sliding).count()) }
     /// a piece's turn about the vertical (its long axis's heading, for a tube)

@@ -96,7 +96,8 @@ def main():
         for ct in (XCAFDoc_ColorType.XCAFDoc_ColorSurf, XCAFDoc_ColorType.XCAFDoc_ColorGen):
             if XCAFDoc_ColorTool.GetColor_s(label, ct, c) or colors.GetColor(shape, ct, c):
                 rgb = c.GetRGB()
-                return "#%02x%02x%02x" % tuple(int(round(max(0, min(1, v)) * 255)) for v in (rgb.Red(), rgb.Green(), rgb.Blue()))
+                color = "#%02x%02x%02x" % tuple(int(round(max(0, min(1, v)) * 255)) for v in (rgb.Red(), rgb.Green(), rgb.Blue()))
+                return color, c.Alpha()
         return None
 
     def mat(loc):
@@ -240,8 +241,11 @@ def main():
     for path, key, label, M, col in placed:
         base = "/".join(path)
         count[base] = count.get(base, 0) + 1
-        parts.append({"id": f"{base}#{count[base]}", "name": path[-1] if path else "", "path": path,
-                      "shape": index_of[key], "m": [x for r in M[:3] for x in r], "color": col})
+        part = {"id": f"{base}#{count[base]}", "name": path[-1] if path else "", "path": path,
+                "shape": index_of[key], "m": [x for r in M[:3] for x in r], "color": col[0] if col else None}
+        if col and col[1] < 1.0:
+            part["opacity"] = col[1]
+        parts.append(part)
     out = {"format": "cadpack 1", "source": os.path.basename(a.src), "units": "m", "parts": parts,
            "shapes": [shape_rows[k] for k in keys], "seconds": round(time.time() - t0, 1)}
     with open(os.path.join(a.out, "meshes.bin"), "wb") as fh:

@@ -1,6 +1,6 @@
 //! For checking a build without a person at it: with FPS_SHOT=<file.png> the app opens a starting
 //! project (FPS_SHOT_STARTER=<n>, the Home screen's order) in a temporary folder, goes to a
-//! workspace (FPS_SHOT_WS=build|rig|bench|field|analyze|home), waits FPS_SHOT_WAIT frames (240),
+//! workspace (FPS_SHOT_WS=archetype|build|rig|bench|field|analyze|home), waits FPS_SHOT_WAIT frames (240),
 //! saves a screenshot and exits. FPS_SHOT_BENCH=1 runs the Bench's wheel comparison first;
 //! FPS_SHOT_KEYS=KeyW,KeyF holds those keys down the whole time.
 use bevy::prelude::*;
@@ -33,11 +33,16 @@ fn open(mut st: ResMut<AppState>) {
     }
     let n: usize = std::env::var("FPS_SHOT_STARTER").ok().and_then(|s| s.parse().ok()).unwrap_or(0);
     let starters = crate::projects::starters();
-    let (_, _, p) = starters.into_iter().nth(n).expect("no such starter");
+    let (_, _, mut p) = starters.into_iter().nth(n).expect("no such starter");
+    let ws = std::env::var("FPS_SHOT_WS").map(|w| Workspace::from_key(&w)).unwrap_or(Workspace::Build);
+    p.archetype = ws == Workspace::Archetype;
     st.settings.projects_dir = std::env::temp_dir().join("fps-shot");
     st.start_new(p);
-    st.ws = std::env::var("FPS_SHOT_WS").map(|w| Workspace::from_key(&w)).unwrap_or(Workspace::Build);
-    if std::env::var("FPS_SHOT_WS").as_deref() == Ok("home") { st.ws = Workspace::Home; }
+    st.ws = ws;
+    if std::env::var_os("FPS_SHOT_CONTROLS").is_some() { st.assembly.open_controls(); }
+    if std::env::var_os("FPS_SHOT_TEST_DRIVE").is_some() { st.assembly.open_drive(); }
+    if std::env::var_os("FPS_SHOT_FIELD_OVERVIEW").is_some() { st.assembly.show_field_overview(); }
+    if std::env::var_os("FPS_SHOT_SIZE_CHECKS").is_some() { st.assembly.show_size_checks(); }
     // FPS_SHOT_GAME=<id>: the project plays that game
     if let Ok(id) = std::env::var("FPS_SHOT_GAME") { st.doc.edit("Game", |p| p.game = id); }
     if std::env::var("FPS_SHOT_BENCH").is_ok() {

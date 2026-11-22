@@ -1,0 +1,49 @@
+name: Mac preview
+on:
+  workflow_dispatch:
+  push:
+    branches: ['codex/macos-preview-*']
+permissions:
+  contents: read
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: macos-15
+            arch: arm64
+          - runner: macos-15-intel
+            arch: x86_64
+    runs-on: ${{ matrix.runner }}
+    env:
+      CARGO_PROFILE_RELEASE_LTO: 'false'
+      CARGO_PROFILE_RELEASE_CODEGEN_UNITS: '16'
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify runner architecture
+        run: test "$(uname -m)" = "${{ matrix.arch }}"
+      - uses: dtolnay/rust-toolchain@1.97.1
+      - uses: Swatinem/rust-cache@v2
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install native physics library
+        run: bash tools/fetch-mujoco.sh
+      - name: Build and test simulator
+        run: |
+          cargo build --locked --release -p app
+          cargo test --locked --release --workspace --exclude app
+      - name: Build CAD reader
+        run: |
+          python -m pip install cadquery-ocp-novtk pyinstaller
+          pyinstaller --noconfirm --onedir --name cadread --collect-all OCP tools/cadread/cadread.py
+          python tools/cadread/make_test_step.py "$RUNNER_TEMP/smoke.step"
+      - name: Package and verify Mac application
+        run: bash tools/package-macos.sh
+      - uses: actions/upload-artifact@v4
+        with:
+          name: FRC-Prototype-Simulator-${{ matrix.arch }}
+          path: dist/FRC-Prototype-Simulator-*.zip
+          compression-level: 0
+          if-no-files-found: error

@@ -5,6 +5,7 @@
 //! came from and whether it was measured.
 pub mod units;
 pub mod stiffness;
+pub mod profile;
 
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -115,7 +116,7 @@ impl Wheel {
     pub fn width(&self) -> f64 { self.width_in * IN }
     /// foundation stiffness, Pa per m of squeeze: measured if a press test was entered, else from
     /// the durometer and build (`stiffness::estimate`)
-    pub fn k_area(&self) -> f64 { self.k_area.unwrap_or_else(|| stiffness::estimate(self)) }
+    pub fn k_area(&self) -> f64 { self.k_area.or_else(|| profile::stock_stiffness(self)).unwrap_or_else(|| stiffness::estimate(self)) }
     pub fn stiffness_estimated(&self) -> bool { self.k_area.is_none() || !self.measured }
 }
 

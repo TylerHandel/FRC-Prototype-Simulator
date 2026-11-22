@@ -14,7 +14,7 @@ pub struct Pose {
     pub quat: Quat,
 }
 
-fn qi() -> Quat { QI }
+pub(crate) fn qi() -> Quat { QI }
 
 impl Default for Pose { fn default() -> Self { Pose { pos: [0.0; 3], quat: QI } } }
 

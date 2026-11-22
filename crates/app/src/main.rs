@@ -25,6 +25,8 @@ fn main() {
     let settings = settings::Settings::load();
     let shot = std::env::var("FPS_SHOT").ok();
     App::new()
+        .register_asset_source("gamepacks", bevy::asset::io::AssetSourceBuilder::platform_default(
+            &settings.projects_dir.join("Game packs").to_string_lossy(), None))
         .add_plugins(DefaultPlugins.set(WindowPlugin {
             primary_window: Some(Window {
                 title: format!("FRC Prototype Simulator {}", env!("CARGO_PKG_VERSION")),

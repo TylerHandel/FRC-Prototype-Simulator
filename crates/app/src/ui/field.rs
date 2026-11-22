@@ -41,7 +41,7 @@ pub fn left(ui: &mut Ui, st: &mut AppState, sim: &Sim) {
             model::Action::Run { drive, value, .. } => format!("{} {}", if *value >= 0.0 { "run" } else { "reverse" }, r.drive(*drive).map_or("?".into(), |d| d.name.clone())),
             model::Action::Release { mechanism } => format!("let go ({})", r.mechanism(*mechanism).map_or("?".into(), |m| m.name.clone())),
         };
-        ui.label(format!("{:?} / {}: {what}", b.button, b.button.key()));
+        ui.label(format!("{:?} / {}: {what}", b.button, r.controls.key(b.button)));
     }
 }
 

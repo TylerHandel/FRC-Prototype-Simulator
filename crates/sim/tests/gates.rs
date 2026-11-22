@@ -139,6 +139,366 @@ fn m2_gate_concept_pickup_and_drive() {
     assert!(w.engine.finite());
 }
 
+#[test]
+fn reversing_a_stock_claw_places_coral_at_the_configured_eject_speed() {
+    let lib = Library::builtin();
+    let mut p = Project::new("Place CORAL");
+    let mut claw = Template::claw_default();
+    claw.mount.offset = [0.5, 0.0, 0.6];
+    let claw = templates::add(&mut p.robot, claw).unwrap();
+    let mechanism = p.robot.mechanism(claw).unwrap();
+    let pickup = mechanism.pickup.as_ref().unwrap();
+    let drive = pickup.drive.unwrap();
+    let button = |sign: f64| p.robot.controls.bindings.iter().find(|b| matches!(b.action,
+        Action::Run {drive: d, value, ..} if d == drive && value.signum() == sign)).unwrap().button;
+    let mut scene = Scene::carpet();
+    let kind = sim::piece::PieceKind::from_library(lib.piece("coral-2025").unwrap());
+    scene.pieces.push(Spawn { piece: kind.id.clone(), pos: pickup.center, quat: kind.resting().1, lin: [0.0;3], ang: [0.0;3] });
+    let mut w = World::new(&p, &lib, scene).unwrap();
+    w.button(button(1.0), true);
+    for _ in 0..150 { w.step(); }
+    assert!(w.snapshot().pieces[0].held);
+    let held = w.snapshot().pieces[0].pose.pos;
+    w.button(button(1.0), false);
+    w.button(button(-1.0), true);
+    w.step();
+    let joint = w.engine.id(sim::engine::Obj::Joint, "p0").unwrap();
+    let (velocity, _) = w.engine.free_vel(joint);
+    println!("Released CORAL velocity {velocity:?} m/s");
+    assert!((velocity[0] - 1.0).abs() < 0.1 && velocity[2].abs() < 0.15, "{velocity:?}");
+    for _ in 0..250 { w.step(); }
+    let pos = w.snapshot().pieces[0].pose.pos;
+    assert!(pos[0] > held[0] && pos[0] < held[0] + 0.9 && pos[2] < held[2], "{pos:?}");
+}
+
+#[test]
+fn sideways_claw_uses_its_rotated_pickup_box_and_release_direction() {
+    let lib = Library::builtin();
+    let mut p = Project::new("Side intake");
+    let mut claw = Template::claw_default();
+    claw.mount.offset = [0.0, 0.48, 0.60];
+    claw.mount.rotation_deg[2] = 90.0;
+    let id = templates::add(&mut p.robot, claw).unwrap();
+    let pickup = p.robot.mechanism(id).unwrap().pickup.as_ref().unwrap();
+    // Inside the rotated width, beyond the unrotated box's half-depth.
+    let mut pos = pickup.center;
+    pos[0] += 0.145;
+    let mut scene = Scene::carpet();
+    let kind = sim::piece::PieceKind::from_library(lib.piece("coral-2025").unwrap());
+    scene.pieces.push(Spawn { piece: kind.id.clone(), pos, quat: kind.resting().1, lin: [0.0; 3], ang: [0.0; 3] });
+    let mut w = World::new(&p, &lib, scene).unwrap();
+    w.button(Button::RB, true);
+    for _ in 0..150 { w.step(); }
+    assert!(w.snapshot().pieces[0].held);
+    w.button(Button::RB, false);
+    w.button(Button::LT, true);
+    w.step();
+    let joint = w.engine.id(sim::engine::Obj::Joint, "p0").unwrap();
+    let (vel, _) = w.engine.free_vel(joint);
+    assert!(vel[0].abs() < 0.1 && (vel[1] - 1.0).abs() < 0.1 && vel[2].abs() < 0.15, "{vel:?}");
+}
+
+#[test]
+fn season_practice_keeps_one_piece_and_drives_across_a_rebuilt_bump() {
+    let lib = Library::builtin();
+    let p = Project::new("Bump crossing");
+    let mut game = sim::game::GamePack::builtin("rebuilt-2026").unwrap();
+    game.practice_start.as_mut().unwrap().pos = [-5.1, 1.522];
+    let mut w = World::practice(&p, &lib, "fuel-2026", Some(&game)).unwrap();
+    assert_eq!(w.snapshot().pieces.len(), 1);
+    assert!((w.chassis_pose().pos[0] + 5.1).abs() < 0.001);
+    w.cmd.drive = [1.6, 0.0, 0.0];
+    let mut peak = 0.0_f64;
+    while w.time < 3.0 && w.chassis_pose().pos[0] < -2.55 {
+        w.step();
+        peak = peak.max(w.chassis_pose().pos[2]);
+    }
+    assert!(peak > 0.085, "climbed {peak} m");
+    assert!(w.chassis_pose().pos[0] >= -2.55, "ended at {:?}", w.chassis_pose().pos);
+    assert!(w.chassis_pose().pos[2] < 0.08);
+    assert!(w.place_practice_piece("coral-2025"));
+    assert_eq!(w.snapshot().pieces.len(), 1);
+    assert_eq!(w.snapshot().pieces[0].kind, "coral-2025");
+}
+
+#[test]
+fn test_drive_moves_on_field_axes_after_turning() {
+    let lib = Library::builtin();
+    let mut world = World::test_drive(&Project::new("Field-centric"), &lib, "coral-2025").unwrap();
+    world.cmd.drive = [0.0, 0.0, 1.5];
+    while yaw_of(world.chassis_pose().quat) < 1.55 && world.time < 2.0 { world.step(); }
+    assert!(yaw_of(world.chassis_pose().quat) > 1.5);
+    for (forward, left) in [(1.0, 0.0), (0.0, 1.0)] {
+        world.cmd.drive = [0.0; 3];
+        for _ in 0..250 { world.step(); }
+        let start = world.chassis_pose().pos;
+        world.cmd.drive = [forward, left, 0.0];
+        for _ in 0..500 { world.step(); }
+        let [dx, dy, _] = model::math::sub(world.chassis_pose().pos, start);
+        assert!(dx * forward + dy * left > 0.75, "field movement {dx}, {dy}");
+        assert!((dy * forward - dx * left).abs() < 0.10, "cross-track drift {dx}, {dy}");
+    }
+}
+
+#[test]
+fn test_drive_practice_piece_can_be_swapped_and_replaced_after_turning() {
+    let lib = Library::builtin();
+    let mut p = Project::new("Practice");
+    let elevator = templates::add(&mut p.robot, Template::elevator_default()).unwrap();
+    let mut claw = Template::claw_default();
+    claw.mount.on = Some(elevator);
+    templates::add(&mut p.robot, claw).unwrap();
+    templates::add(&mut p.robot, Template::intake_default()).unwrap();
+    let mut w = World::test_drive(&p, &lib, "coral-2025").unwrap();
+    let first = w.snapshot().pieces;
+    assert_eq!(first.len(), 1);
+    assert_eq!(first[0].kind, "coral-2025");
+    w.button(Button::RT, true);
+    w.cmd.drive = [p.robot.drivetrain.as_ref().unwrap().max_speed, 0.0, 0.0];
+    while w.time < 0.6 { w.step(); }
+    let before_rebuild = w.snapshot().pieces[0].pose;
+    let mut rebuilt = World::test_drive(&p, &lib, "coral-2025").unwrap();
+    rebuilt.carry_from(&w);
+    assert!(len(sub(rebuilt.snapshot().pieces[0].pose.pos, before_rebuild.pos)) < 0.001);
+    assert!(!rebuilt.snapshot().pieces[0].held);
+
+    w.button(Button::RT, false);
+    w.cmd.drive = [0.0, 0.0, 1.0];
+    for _ in 0..600 { w.step(); }
+    w.engine.forward();
+    let before = w.chassis_pose();
+    let time = w.time;
+    let old_commands = w.cmd.drive;
+    for id in ["fuel-2026", "algae-2025", "coral-2025", "coral-2025"] {
+        assert!(w.place_practice_piece(id));
+        let pieces = w.snapshot().pieces;
+        assert_eq!(pieces.len(), 1);
+        assert_eq!(pieces[0].kind, id);
+        assert!(!pieces[0].held);
+        let forward = before.rotate([1.0, 0.0, 0.0]);
+        let delta = model::math::sub(pieces[0].pose.pos, before.pos);
+        assert!(forward[0]*delta[0] + forward[1]*delta[1] > 0.5);
+        assert!((forward[0]*delta[1] - forward[1]*delta[0]).abs() < 0.001);
+        assert_eq!(w.time, time);
+        assert_eq!(w.cmd.drive, old_commands);
+        assert!(model::math::len(model::math::sub(w.chassis_pose().pos, before.pos)) < 0.01);
+    }
+    assert!(!w.place_practice_piece("missing"));
+    w.cmd.drive = [0.0; 3];
+    for _ in 0..100 { w.step(); }
+    assert!(!w.snapshot().pieces[0].held);
+    assert!(w.engine.finite());
+}
+
+fn upright_reef_robot() -> (Project, Id) {
+    let p = templates::upright_reef_example();
+    let id = p.robot.mechanisms.iter().find(|m| m.kind == MechKind::Claw).unwrap().id;
+    (p, id)
+}
+
+#[test]
+fn roller_hold_runs_in_either_direction_and_resumes_after_override() {
+    let lib = Library::builtin();
+    for amps in [3.0, -3.0] {
+        let (mut p, claw) = upright_reef_robot();
+        let drive = p.robot.mechanism(claw).unwrap().pickup.as_ref().unwrap().drive.unwrap();
+        p.robot.controls.roller_hold_amps.insert(drive, amps);
+        let mut w = World::test_drive(&p, &lib, "coral-2025").unwrap();
+        let read = |w: &World| w.snapshot().drives.into_iter().find(|d| d.id == drive).unwrap();
+        for _ in 0..25 { w.step(); }
+        assert!((read(&w).current - amps.abs()).abs() < 1e-8 && read(&w).speed * amps > 0.);
+        let opposite = if amps > 0. { Button::LT } else { Button::RB };
+        w.button(opposite, true);
+        for _ in 0..150 { w.step(); }
+        assert!(read(&w).speed * amps < 0.);
+        w.button(opposite, false);
+        w.step();
+        assert!((read(&w).current - amps.abs()).abs() < 1e-8);
+    }
+}
+
+#[test]
+fn upright_coral_is_physically_gripped_lifted_and_released() {
+    for gap in [None, Some(3.5 * library::IN)] {
+        run_upright_grip(gap);
+    }
+}
+
+fn run_upright_grip(gap: Option<f64>) {
+    let lib = Library::builtin();
+    let (mut p, id) = upright_reef_robot();
+    if let Some(gap) = gap {
+        let mut t = p.robot.mechanism(id).unwrap().template.clone().unwrap();
+        if let Params::Claw { gap: g, .. } = &mut t.params { *g = gap; }
+        templates::rebuild(&mut p.robot, id, t).unwrap();
+    }
+    let mut w = World::test_drive(&p, &lib, "coral-2025").unwrap();
+    w.button(Button::RB, true);
+    for _ in 0..180 { w.step(); }
+    assert!(w.place_piece("coral-2025", sim::world::TubeOrientation::Upright, Some(id)));
+    let start = w.snapshot().pieces[0].pose;
+    let mut contact: f64 = 0.;
+    for _ in 0..650 { w.step(); contact = contact.max(w.contact_force()); }
+    let seated = w.snapshot().pieces[0].pose;
+    w.button(Button::RB, false);
+    w.button(Button::B, true);
+    for _ in 0..1300 { w.step(); }
+    let lifted = w.snapshot().pieces[0].clone();
+    println!("feed {:?}, seated {:?}, lifted {:?}, contact {contact}", start.pos, seated.pos, lifted.pose.pos);
+    assert!(contact > 1. && seated.pos[0] < start.pos[0] - 0.04);
+    assert!(lifted.pose.pos[2] > seated.pos[2] + 0.15 && lifted.pose.rotate([0.,0.,1.])[2] > 0.92);
+    assert!(!lifted.held);
+    let grip = w.chassis_pose().inverse().apply(lifted.pose.pos);
+    for demand in [[0., 2., 0.], [0., -2., 0.], [-2., 0., 0.], [2., 0., 0.]] {
+        let start = w.chassis_pose().pos;
+        w.cmd.drive = demand;
+        let mut slip: f64 = 0.;
+        for _ in 0..(0.7 / w.dt) as usize {
+            w.step();
+            let local = w.chassis_pose().inverse().apply(w.piece_positions()[0].0);
+            slip = slip.max(model::math::len(model::math::sub(local, grip)));
+        }
+        let distance = model::math::len(model::math::sub(w.chassis_pose().pos, start));
+        println!("drive {demand:?}, moved {distance:.3} m, maximum CORAL displacement {slip:.4} m");
+        assert!(distance > 0.1 && slip < 0.025, "grip during horizontal drive");
+    }
+    w.cmd.drive = [0.; 3];
+    let before_release = w.chassis_pose().inverse().apply(w.piece_positions()[0].0);
+    w.button(Button::LT, true);
+    for _ in 0..650 { w.step(); }
+    let released = w.chassis_pose().inverse().apply(w.piece_positions()[0].0);
+    assert!(released[0] > before_release[0] + 0.08 || released[2] < before_release[2] - 0.15, "released {released:?}");
+}
+
+#[test]
+fn upright_claw_drives_to_the_reef_and_scores_l4() {
+    for right in [false, true] { score_with_starter(right); }
+}
+
+fn score_with_starter(right: bool) {
+    let lib = Library::builtin();
+    let (p, claw) = upright_reef_robot();
+    let g = sim::game::GamePack::builtin("reefscape-2025").unwrap();
+    let mut w = World::practice(&p, &lib, "coral-2025", Some(&g)).unwrap();
+    let step = |w: &mut World, seconds: f64| {
+        for _ in 0..(seconds/w.dt).round() as usize { w.step(); }
+    };
+    w.button(Button::RB, true); // operator's intake action
+    step(&mut w, 0.18);
+    assert!(w.place_piece("coral-2025", sim::world::TubeOrientation::Upright, Some(claw)));
+    step(&mut w, 0.65);
+    w.button(Button::RB, false);
+    let lift = |name: &str| {
+        let preset = p.robot.controls.presets.iter().find(|x| x.name == name).unwrap().id;
+        p.robot.controls.bindings.iter().find(|x| x.action == (Action::Preset { preset })).unwrap().button
+    };
+    w.button(lift("Clear L4"), true);
+    step(&mut w, 2.);
+    let high = w.snapshot().pieces[0].pose;
+    assert!(high.pos[2] > 1.99, "CORAL above the branch {:?}", high.pos);
+    w.reef_align(right, true);
+    step(&mut w, 3.5);
+    let above = w.snapshot().pieces[0].pose;
+    let name = if right { "Blue L4 4l" } else { "Blue L4 4r" };
+    let peg = g.zones.iter().find(|z| z.name == name).unwrap().seat.as_ref().unwrap().peg_tip.unwrap();
+    println!("CORAL above {:?}, peg {peg:?}, chassis {:?}",above.pos,w.chassis_pose().pos);
+    assert!((above.pos[0]-peg[0]).hypot(above.pos[1]-peg[1]) < 0.025);
+    w.button(lift("Seat L4"), true);
+    step(&mut w, 1.2);
+    assert_eq!(w.matched.score, 0., "The rollers still grip the pipe");
+    w.reef_align(right, false);
+    w.button(Button::LT, true);
+    w.cmd.drive = [-0.45,0.,0.];
+    step(&mut w, 0.75);
+    w.button(Button::LT, false);
+    w.cmd.drive = [0.;3];
+    step(&mut w, 1.);
+    let result = w.snapshot();
+    assert!(result.pieces[0].scored && result.score == 5., "released CORAL {:?}, events {:?}",result.pieces[0], w.matched.log);
+    assert!(w.matched.log.last().unwrap().what.ends_with(name));
+}
+
+#[test]
+fn bumpers_align_to_camera_side_and_change_distance_with_position() {
+    let lib = Library::builtin();
+    let mut p = Project::new("Reef driver");
+    templates::add(&mut p.robot, Template::elevator_default()).unwrap();
+    let position = p.robot.controls.bindings.iter().find_map(|b| match (b.button, &b.action) {
+        (Button::B, Action::Preset { preset }) => Some(*preset), _ => None,
+    }).unwrap();
+    p.robot.controls.presets.iter_mut().find(|p| p.id == position).unwrap().reef_gap = 0.32;
+    let saved = serde_json::to_string(&p).unwrap();
+    let p = serde_json::from_str::<Project>(&saved).unwrap();
+    let g = sim::game::GamePack::builtin("reefscape-2025").unwrap();
+    let mut g = g;
+    // Face back toward the driver station so robot-right and screen-right are opposite.
+    g.practice_start.as_mut().unwrap().yaw_deg = 150.;
+    let face = g.reef_faces.iter().min_by(|a,b| a.center[0].total_cmp(&b.center[0])).unwrap();
+    let mut w = World::practice(&p, &lib, "coral-2025", Some(&g)).unwrap();
+    w.reef_align(true, true);
+    let front = p.robot.frame.length / 2. + p.robot.frame.bumper_thickness;
+    let aligned = |w: &World, y: f64, gap: f64| {
+        let pose = w.chassis_pose();
+        assert!((pose.pos[1]-y).abs() < 0.025 &&
+            (face.center[0] - pose.pos[0] - front - gap).abs() < 0.025, "aligned pose {:?}, y {y}, gap {gap}", pose.pos);
+        assert!(pose.rotate([1.,0.,0.])[0] > 0.99);
+    };
+    for _ in 0..2500 { w.step(); }
+    aligned(&w, -face.branch_offset, model::default_reef_gap());
+    w.button(Button::B, true);
+    for _ in 0..1800 { w.step(); }
+    aligned(&w, -face.branch_offset, 0.32);
+    w.reef_align(true, false);
+    w.reef_align(false, true);
+    for _ in 0..1800 { w.step(); }
+    aligned(&w, face.branch_offset, 0.32);
+    w.reef_align(false, false);
+    w.cmd.drive = [-0.7,0.,0.];
+    let before = w.chassis_pose().pos;
+    for _ in 0..600 { w.step(); }
+    assert!(w.chassis_pose().pos[0] < before[0] - 0.2);
+    for face in &g.reef_faces {
+        for yaw in [-2.2, -0.3, 1.4] {
+            let (left, _) = face.branch(yaw, false);
+            let (right, _) = face.branch(yaw, true);
+            assert!(dot(sub(right, left), [yaw.sin(), -yaw.cos(), 0.]) > 0.);
+        }
+    }
+}
+
+#[test]
+fn practice_coral_threads_each_level_and_can_score_again() {
+    let lib = Library::builtin();
+    let g = sim::game::GamePack::builtin("reefscape-2025").unwrap();
+    let mut w = World::practice(&Project::new("Reef practice"), &lib, "coral-2025", Some(&g)).unwrap();
+    let idx = lib.pieces.iter().position(|p| p.id == "coral-2025").unwrap();
+    let joint = w.engine.id(sim::engine::Obj::Joint, &format!("p{idx}")).unwrap();
+    for level in ["Blue L2 1l", "Blue L3 1r", "Red L4 5l", "Red L4 5l"] {
+        assert!(w.place_practice_piece("coral-2025"));
+        let seat = g.zones.iter().find(|z| z.name == level).unwrap().seat.as_ref().unwrap();
+        let quat = euler_to_quat(seat.euler_deg.map(f64::to_radians));
+        let axis = qrot(quat,[0.,0.,1.]);
+        let tip = seat.peg_tip.unwrap();
+        let start = if level.contains("L4") { add(tip, scale(axis, 0.17)) } else { add(seat.pos,scale(axis, 0.05)) };
+        w.engine.set_free(joint, start, quat, [0.;3], [0.;3]);
+        w.engine.forward();
+        let before = w.matched.score;
+        for _ in 0..1500 { w.step(); }
+        let piece = w.snapshot().pieces[0].clone();
+        assert!(piece.scored && w.matched.score > before, "{level} at {:?} axis {:?} events {:?}", piece.pose.pos, piece.pose.rotate([0.,0.,1.]), w.matched.log);
+        assert!(w.matched.log.last().unwrap().what.ends_with(level));
+        let sideways = Pose::along(seat.pos, [-axis[2],0.,axis[0]]);
+        assert!(!seat.threaded(sideways,0.051,0.15));
+    }
+    w.place_practice_piece("coral-2025");
+    let trough = g.zones.iter().find(|z| z.name == "Blue L1 face 1").unwrap();
+    let sideways = axis_angle([1.,0.,0.], std::f64::consts::FRAC_PI_2);
+    w.engine.set_free(joint, add(trough.center,[0.,0.,0.05]), sideways, [0.;3], [0.;3]);
+    w.engine.forward();
+    for _ in 0..1500 { w.step(); }
+    assert!(w.matched.log.last().unwrap().what.ends_with(&trough.name), "trough {:?}", w.snapshot().pieces[0]);
+}
+
 /// A robot drives to top speed close to its free speed and stops, and the battery sags while it
 /// accelerates (M2, D6).
 #[test]
@@ -311,7 +671,8 @@ fn m4_gate_station_to_l4_cycles() {
         let a = (seat[1] - reef[1]).atan2(seat[0] - reef[0]);
         let a = (a / (std::f64::consts::PI / 3.0)).round() * std::f64::consts::PI / 3.0;
         let n = [a.cos(), a.sin()];
-        let out = 0.1 + half + 0.03;
+        let inset = 0.051; // L4 centreline measured from the CAD face
+        let out = inset + half + 0.03;
         let stand = [seat[0] + n[0] * out, seat[1] + n[1] * out, (-n[1]).atan2(-n[0])];
         bot.around(&mut w, reef, stand);
         assert!(bot.go(&mut w, stand, 10.0, |w, d| if d < 2.0 { w.cmd.targets.insert(elev, top); }), "reached {name}");
@@ -404,7 +765,10 @@ fn m5_coral_scores_on_branches_by_itself() {
     scene.pieces.push(Spawn { piece: "coral-2025".into(), pos: add(l3.pos, scale(out, 0.05)), quat: q, lin: [0.0; 3], ang: [0.0; 3] });
     let mut w = World::new(&p, &lib, scene).unwrap();
     while w.time < 3.0 { w.step(); }
-    for (i, (pos, _)) in w.piece_positions().iter().enumerate() { println!("piece {i} at {:?}", pos.map(|x| (x * 1000.0).round() / 1000.0)); }
+    for (i, (pos, _)) in w.piece_positions().iter().enumerate() {
+        let s = &w.snapshot().pieces[i];
+        println!("piece {i} at {pos:?}, axis {:?}, contacts {:?}", s.pose.rotate([0.,0.,1.]), w.piece_contacts(i));
+    }
     println!("log {:?}", w.matched.log.iter().map(|e| (&e.what, e.points)).collect::<Vec<_>>());
     assert!(w.matched.log.iter().any(|e| e.what == "scored Blue L4 1l"), "L4 by itself");
     assert!(w.matched.log.iter().any(|e| e.what == "scored Blue L3 1r"), "L3 by itself");
@@ -441,7 +805,8 @@ fn m5_beam_break_stops_the_intake() {
     let i = templates::add(&mut p.robot, Template::intake_default()).unwrap();
     let m = p.robot.mechanism(i).unwrap().clone();
     let h = m.holders[0].clone();
-    p.robot.sensors.push(Sensor::BeamBreak { name: "Have it".into(), link: h.link, from: add(h.pose.pos, [0.0, -0.2, 0.0]), to: add(h.pose.pos, [0.0, 0.2, 0.0]) });
+    // Cross the PVC wall. An axial beam centred on the empty bore stays clear.
+    p.robot.sensors.push(Sensor::BeamBreak { name: "Have it".into(), link: h.link, from: add(h.pose.pos, [-0.08, 0., 0.]), to: add(h.pose.pos, [0.08, 0., 0.]) });
     let roller = p.robot.drives.iter().find(|d| matches!(d.target, DriveTarget::Shaft { .. })).unwrap().id;
     p.robot.controls.bindings.retain(|b| b.button != Button::RT);
     p.robot.controls.bindings.push(Binding { button: Button::RT, action: Action::Run { drive: roller, value: 10.0, until: Some("Have it".into()) } });
@@ -475,7 +840,10 @@ fn m5_claw_pulls_in_and_holds_algae() {
     p.robot.drivetrain = None;
     let mut c = Template::claw_default();
     c.mount.offset = [0.2, 0.0, 0.8];
-    if let Params::Claw { width, gap, depth, .. } = &mut c.params { *width = 0.5; *gap = 14.0 * library::IN; *depth = 0.45; }
+    if let Params::Claw { width, gap, depth, .. } = &mut c.params {
+        // Place the rollers near the ball's equator when it rests against the back plate.
+        *width = 0.5; *gap = 14.0 * library::IN; *depth = 0.30;
+    }
     let id = templates::add(&mut p.robot, c).unwrap();
     if let Some(m) = p.robot.mechanism_mut(id) { m.fidelity = Fidelity::Full; }
     let roller = p.robot.drives.iter().find(|d| matches!(d.target, DriveTarget::Shaft { .. })).unwrap().id;

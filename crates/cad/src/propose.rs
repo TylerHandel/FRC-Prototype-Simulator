@@ -737,9 +737,9 @@ pub fn apply(r: &mut Robot, cp: &Cadpack, to_robot: &Pose, prop: &Proposal, lib:
         let pid = r.id();
         // "out" is the end of its travel farther from where the CAD has it
         let far = j.range.map_or(1.0, |[lo, hi]| if lo.abs() > hi.abs() { lo } else { hi });
-        r.controls.presets.push(Preset { id: pid, name: format!("{} out", j.name), targets: vec![PresetTarget { drive: d, value: far }] });
+        r.controls.presets.push(Preset { reef_gap: model::default_reef_gap(), id: pid, name: format!("{} out", j.name), targets: vec![PresetTarget { drive: d, value: far }] });
         let pid2 = r.id();
-        r.controls.presets.push(Preset { id: pid2, name: format!("{} home", j.name), targets: vec![PresetTarget { drive: d, value: 0.0 }] });
+        r.controls.presets.push(Preset { reef_gap: model::default_reef_gap(), id: pid2, name: format!("{} home", j.name), targets: vec![PresetTarget { drive: d, value: 0.0 }] });
     }
     templates::assign_preset_buttons(r);
     fit_collision(r, cp, to_robot);
