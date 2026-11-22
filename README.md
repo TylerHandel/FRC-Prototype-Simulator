@@ -6,12 +6,20 @@ Compare wheels on an intake before you cut anything.
 
 ## Install
 
+### Windows
+
 1. Go to the [latest release](https://github.com/TylerHandel/FRC-Prototype-Simulator/releases/latest).
 2. Download `FrcPrototypeSim-win-Setup.exe` and run it.
 3. That's all. The app keeps itself up to date: when a new version is out it downloads it in the
    background and restarts into it when your work is saved (or when you close it).
 
-Windows only for now.
+### Mac preview
+
+Open the [Mac preview builds](https://github.com/TylerHandel/FRC-Prototype-Simulator/actions/workflows/macos-preview.yml), select a successful run, and download the artifact for your Mac. Choose **arm64** for Apple Silicon (M-series) or **x86_64** for Intel. GitHub requires sign-in for artifact downloads.
+
+Unzip the download and the simulator ZIP inside it. Drag **FRC Prototype Simulator.app** into **Applications**. The preview includes its physics library and CAD reader. To update, download the next preview and replace the app.
+
+The preview uses an ad-hoc signature. If macOS blocks the first launch, follow [Apple's instructions for opening a trusted app](https://support.apple.com/en-us/102445).
 
 ## Your first ten minutes
 
