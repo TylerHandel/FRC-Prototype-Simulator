@@ -13,8 +13,9 @@ case "$(uname -s)" in
 esac
 TMP=$(mktemp -d)
 MOUNT="$TMP/volume"
+mounted=false
 cleanup() {
-  if mount | grep -Fq " on $MOUNT "; then hdiutil detach "$MOUNT" >/dev/null; fi
+  if $mounted; then hdiutil detach "$MOUNT" >/dev/null || return 1; fi
   rm -rf "$TMP"
 }
 trap cleanup EXIT
@@ -26,11 +27,13 @@ if [[ "$ARCHIVE" == *.tar.gz ]]; then
 else
   mkdir "$MOUNT"
   hdiutil attach -readonly -nobrowse -mountpoint "$MOUNT" "$TMP/$ARCHIVE"
-  framework=$(find "$MOUNT" -type d -name mujoco.framework -print -quit)
-  test -f "$framework/mujoco"
+  mounted=true
+  framework="$MOUNT/mujoco.framework/Versions/A"
+  library="$framework/libmujoco.$VERSION.dylib"
+  test -f "$library"
   mkdir -p "$TMP/stage/lib" "$TMP/stage/include/mujoco"
-  cp -L "$framework/mujoco" "$TMP/stage/lib/libmujoco.dylib"
-  cp -RL "$framework/Headers/." "$TMP/stage/include/mujoco/"
+  cp -L "$library" "$TMP/stage/lib/libmujoco.dylib"
+  cp -R "$framework/Headers/"*.h "$TMP/stage/include/mujoco/"
   chmod u+w "$TMP/stage/lib/libmujoco.dylib"
   install_name_tool -id @rpath/libmujoco.dylib "$TMP/stage/lib/libmujoco.dylib"
   codesign --force --sign - "$TMP/stage/lib/libmujoco.dylib"
