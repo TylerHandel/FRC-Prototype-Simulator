@@ -65,6 +65,8 @@ fn saved_keys() -> (String, String) {
 /// The CAD reader: the packaged one next to the app, or (developing) Python with OpenCascade.
 pub fn sidecar() -> Sidecar {
     let exe_dir = std::env::current_exe().ok().and_then(|p| p.parent().map(|d| d.to_path_buf())).unwrap_or_default();
+    #[cfg(target_os = "macos")]
+    let exe_dir = exe_dir.join("../Resources");
     let packaged = exe_dir.join("cadread").join(if cfg!(windows) { "cadread.exe" } else { "cadread" });
     if packaged.exists() { return Sidecar { program: packaged, args: vec![] }; }
     let script = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../tools/cadread/cadread.py");
@@ -322,7 +324,7 @@ fn review(ui: &mut Ui, st: &mut AppState) {
     egui::CollapsingHeader::new(format!("Links ({})", prop.links.len())).default_open(true).show(ui, |ui| {
         for (i, l) in prop.links.iter_mut().enumerate() {
             ui.horizontal(|ui| {
-                ui.colored_label(color32(LINK_COLORS[i % LINK_COLORS.len()]), "■");
+                ui.colored_label(color32(LINK_COLORS[i % LINK_COLORS.len()]), "â– ");
                 changed |= ui.text_edit_singleline(&mut l.name).changed();
                 ui.label(RichText::new(format!("{} parts", l.parts.len())).color(MUTED));
             });

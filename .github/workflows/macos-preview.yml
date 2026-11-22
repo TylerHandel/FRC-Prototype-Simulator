@@ -25,6 +25,8 @@ jobs:
         run: test "$(uname -m)" = "${{ matrix.arch }}"
       - uses: dtolnay/rust-toolchain@1.97.1
       - uses: Swatinem/rust-cache@v2
+        with:
+          save-on-failure: true
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
