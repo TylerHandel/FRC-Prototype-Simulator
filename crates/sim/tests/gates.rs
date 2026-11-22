@@ -353,12 +353,17 @@ fn run_upright_grip(gap: Option<f64>) {
         let start = w.chassis_pose().pos;
         w.cmd.drive = demand;
         let mut slip: f64 = 0.;
+        let mut distance = 0.;
+        let mut previous = start;
         for _ in 0..(0.7 / w.dt) as usize {
             w.step();
-            let local = w.chassis_pose().inverse().apply(w.piece_positions()[0].0);
+            let chassis = w.chassis_pose();
+            // On reversal the chassis can cross its starting point while loading the claw.
+            distance += model::math::len(model::math::sub(chassis.pos, previous));
+            previous = chassis.pos;
+            let local = chassis.inverse().apply(w.piece_positions()[0].0);
             slip = slip.max(model::math::len(model::math::sub(local, grip)));
         }
-        let distance = model::math::len(model::math::sub(w.chassis_pose().pos, start));
         println!("drive {demand:?}, moved {distance:.3} m, maximum CORAL displacement {slip:.4} m");
         assert!(distance > 0.1 && slip < 0.025, "grip during horizontal drive");
     }
