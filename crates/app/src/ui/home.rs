@@ -9,22 +9,32 @@ pub fn show(ui: &mut Ui, st: &mut AppState) {
         ui.add_space(16.0);
         ui.vertical_centered(|ui| {
             ui.heading(RichText::new("FRC Prototype Simulator").size(28.0).color(ACCENT));
-            ui.label(RichText::new("Bring a robot as blocks or as CAD, and see whether it picks the piece up, how fast it cycles, what it draws from the battery, and whether it tips.").color(MUTED));
         });
         ui.add_space(16.0);
         ui.columns(2, |cols| {
             let ui = &mut cols[0];
-            heading(ui, "Start a new robot");
+            heading(ui, "Archetype builder");
             ui.horizontal(|ui| { ui.label("Name"); ui.text_edit_singleline(&mut st.new_name); });
-            hint(ui, "Pick a starting point. Everything in it can be changed or removed.");
-            for (title, about, p) in crate::projects::starters() {
-                if card(ui, title, about) {
-                    let mut p = p;
-                    p.name = if st.new_name.trim().is_empty() { title.to_string() } else { st.new_name.trim().to_string() };
-                    p.robot.name = p.name.clone();
-                    st.start_new(p);
-                }
+            if card(ui, "Blank swerve chassis", "Place mechanisms, size them against the bumpers, and drive your robot.") {
+                start_archetype(st, model::Project::new("My archetype"));
             }
+            if card(ui, "Elevator and claw example", "Explore a carriage-mounted claw and ground intake on a swerve base.") {
+                start_archetype(st, crate::projects::elevator_example());
+            }
+            if card(ui, "Upright CORAL scorer", "Feed a vertical pipe, lift it over an L4 branch, and lower it onto the reef.") {
+                start_archetype(st, model::templates::upright_reef_example());
+            }
+            ui.separator();
+            heading(ui, "CAD and simulation");
+            egui::CollapsingHeader::new("Simulation starters").show(ui, |ui| {
+                for (title, about, mut p) in crate::projects::starters() {
+                    if card(ui, title, about) {
+                        p.name = if st.new_name.trim().is_empty() { title.to_string() } else { st.new_name.trim().to_string() };
+                        p.robot.name = p.name.clone();
+                        st.start_new(p);
+                    }
+                }
+            });
             ui.add_space(8.0);
             if card(ui, "From CAD", "Start empty and bring your robot in from an Onshape link or a STEP file (Rig CAD).") {
                 let mut p = model::Project::new(if st.new_name.trim().is_empty() { "CAD robot" } else { st.new_name.trim() });
@@ -75,4 +85,13 @@ pub fn show(ui: &mut Ui, st: &mut AppState) {
             hint(ui, &format!("Version {}", crate::update::current_version()));
         });
     });
+}
+
+fn start_archetype(st: &mut AppState, mut p: model::Project) {
+    if !st.new_name.trim().is_empty() {
+        p.name = st.new_name.trim().into();
+        p.robot.name = p.name.clone();
+    }
+    p.archetype = true;
+    st.start_new(p);
 }

@@ -11,6 +11,10 @@ pub struct GamePack {
     #[serde(default)]
     pub about: String,
     pub field: FieldSize,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub robot_size: Option<RobotSize>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub design_reference: Option<DesignReference>,
     pub statics: Vec<Static>,
     #[serde(default)]
     pub pieces: Vec<Spawn>,
@@ -18,12 +22,55 @@ pub struct GamePack {
     pub feeders: Vec<Feeder>,
     #[serde(default)]
     pub zones: Vec<Zone>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub reef_faces: Vec<ReefFace>,
     pub timing: Timing,
     pub start: Start,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub practice_start: Option<Start>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct FieldSize { pub length: f64, pub width: f64, pub carpet_friction: f64 }
+
+/// Outline coordinates in metres from the aligned front bumper, at carpet height.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DesignReference {
+    pub name: String,
+    pub side: OutlineView,
+    pub top: OutlineView,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct OutlineView {
+    /// Closed contours in forward/up (side) or forward/left (top) coordinates.
+    pub contours: Vec<Vec<[f32; 2]>>,
+    #[serde(default)]
+    pub labels: Vec<OutlineLabel>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct OutlineLabel {
+    pub text: String,
+    pub at: [f32; 2],
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub tip: Option<[f32; 2]>,
+}
+
+/// Nominal geometry checks for a rectangular chassis. All distances are in metres.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RobotSize {
+    pub perimeter: f64,
+    pub start_height: f64,
+    pub start_extension: f64,
+    pub extension: f64,
+    #[serde(default)]
+    pub operating_height: Option<f64>,
+    #[serde(default)]
+    pub one_side: bool,
+    #[serde(default)]
+    pub source: String,
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Static {
@@ -111,6 +158,9 @@ pub struct Zone {
     /// where a piece released close enough is seated (Concept's scoring assist), and how close
     #[serde(default)]
     pub seat: Option<Seat>,
+    /// A receptacle that must physically support the piece before it counts.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub support: Option<String>,
     /// a goal that gives scored pieces back (a HUB): each is counted, then sent out from here
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub exit: Option<Exit>,
@@ -125,7 +175,53 @@ pub struct Exit { pub pos: V3, pub dir: V3, pub speed: f64 }
 fn one() -> u32 { 1 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct Seat { pub pos: V3, pub euler_deg: V3, pub tolerance: f64 }
+pub struct Seat {
+    pub pos: V3, pub euler_deg: V3, pub tolerance: f64,
+    #[serde(default)] pub peg_tip: Option<V3>,
+    #[serde(default)] pub peg_radius: f64,
+}
+
+impl Seat {
+    /// Require a length of branch inside the bore. A pipe balanced beside the tip can be
+    /// equally close to the seat's centre, including when it is perpendicular to the branch.
+    pub fn threaded(&self, pipe: Pose, inner_radius: f64, half: f64) -> bool {
+        let Some(tip) = self.peg_tip else { return true };
+        let local = pipe.inverse();
+        let start = local.apply(tip);
+        let axis = local.rotate(qrot(euler_to_quat(self.euler_deg.map(f64::to_radians)), [0., 0., 1.]));
+        if axis[2].abs() < 0.80 { return false; }
+        let clearance = inner_radius - self.peg_radius + 0.002;
+        let mut consecutive = 0;
+        for i in 0..=10 {
+            let p = sub(start, scale(axis, f64::from(i) * 0.018));
+            if p[2].abs() < half && p[0].hypot(p[1]) <= clearance {
+                consecutive += 1;
+                if consecutive >= 3 { return true; }
+            } else { consecutive = 0; }
+        }
+        false
+    }
+}
+
+#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+pub struct ReefFace { pub center: [f64; 2], pub yaw_deg: f64, pub branch_offset: f64 }
+
+impl ReefFace {
+    pub fn normal(self) -> V3 {
+        let a = self.yaw_deg.to_radians();
+        [a.cos(), a.sin(), 0.]
+    }
+    /// A branch's centreline on the chosen side of the view and the robot yaw needed to approach it.
+    /// A view yaw of zero looks away from the blue driver station along field +X.
+    pub fn branch(self, view_yaw: f64, right: bool) -> (V3, f64) {
+        let n = self.normal();
+        let tangent = [-n[1], n[0], 0.];
+        let camera_right = [view_yaw.sin(), -view_yaw.cos(), 0.];
+        let sign = if dot(camera_right, tangent) < -1e-8 { -1. } else { 1. };
+        let offset = self.branch_offset * if right { sign } else { -sign };
+        (add([self.center[0], self.center[1], 0.], scale(tangent, offset)), (-n[1]).atan2(-n[0]))
+    }
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Timing { pub auto: f64, pub teleop: f64 }
@@ -167,6 +263,13 @@ impl GamePack {
     /// From game.json's text, with where it went wrong in words a person can act on.
     pub fn parse(s: &str) -> Result<GamePack, String> {
         let mut g: GamePack = serde_json::from_str(s).map_err(|e| format!("game.json line {}, column {}: {}", e.line(), e.column(), e))?;
+        if let Some(s) = &g.robot_size {
+            if s.perimeter <= 0.0 || s.start_height <= 0.0 || s.operating_height.is_some_and(|h| h <= 0.0)
+                || s.start_extension < 0.0 || s.extension < 0.0 {
+                return Err("robot_size needs positive height and perimeter limits and nonnegative extension limits.".into());
+            }
+            if !s.source.is_empty() && !s.source.starts_with("https://") { return Err("Use an HTTPS link for robot_size.source, or omit it.".into()); }
+        }
         g.expand();
         Ok(g)
     }
@@ -198,7 +301,8 @@ impl GamePack {
         self.feeders.extend(feeders);
         let zones: Vec<Zone> = self.zones.iter().filter(|x| x.mirror).map(|x| Zone {
             name: other_side(&x.name), alliance: other_side(&x.alliance), center: turn(x.center), euler_deg: yaw(x.euler_deg), mirror: false,
-            seat: x.seat.as_ref().map(|s| Seat { pos: turn(s.pos), euler_deg: yaw(s.euler_deg), tolerance: s.tolerance }),
+            seat: x.seat.as_ref().map(|s| Seat { pos: turn(s.pos), euler_deg: yaw(s.euler_deg), peg_tip: s.peg_tip.map(turn), ..s.clone() }),
+            support: x.support.as_deref().map(other_side),
             exit: x.exit.as_ref().map(|e| Exit { pos: turn(e.pos), dir: turn(e.dir), speed: e.speed }),
             ..x.clone()
         }).collect();
@@ -352,12 +456,24 @@ mod tests {
         std::fs::write(t.join("game.json"), include_str!("../../../assets/games/template/game.json")).unwrap();
         std::fs::write(t.join("pieces.json"), include_str!("../../../assets/games/template/pieces.json")).unwrap();
         let f = find("new-game", &[root]).unwrap();
+        assert!(f.pack.robot_size.is_none());
         let mut lib = library::Library::builtin();
         lib.load_overlay(&t).unwrap();
         assert!(f.pack.check(&lib).is_empty(), "{:?}", f.pack.check(&lib));
         assert_eq!(f.pack.zones.len(), 2);
         let w = crate::world::World::new(&model::Project::new("t"), &lib, crate::world::Scene::field(&f.pack)).unwrap();
         assert!(w.engine.finite());
+    }
+
+    #[test]
+    fn kickoff_size_limits_can_be_added_to_an_existing_pack() {
+        let mut pack: serde_json::Value = serde_json::from_str(include_str!("../../../assets/games/template/game.json")).unwrap();
+        pack["robot_size"] = serde_json::json!({"perimeter": 3.0, "start_height": 1.2, "start_extension": 0.0, "extension": 0.5});
+        let rules = GamePack::parse(&pack.to_string()).unwrap().robot_size.unwrap();
+        assert_eq!(rules.operating_height, None);
+        assert!(!rules.one_side);
+        pack["robot_size"]["start_height"] = serde_json::json!(0.0);
+        assert!(GamePack::parse(&pack.to_string()).unwrap_err().contains("robot_size"));
     }
 
     #[test]

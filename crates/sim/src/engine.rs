@@ -141,6 +141,18 @@ impl Engine {
 
     pub fn set_equality(&mut self, e: usize, on: bool) { self.data.eq_active_mut()[e] = on; }
 
+    /// A wheel above carpet height can still drive on a field element. Only contact
+    /// normals supporting the wheel from below count (a wall contact supplies no traction).
+    pub fn wheel_support(&self, wheels: &[usize], down: &mut [bool]) {
+        for c in self.data.contact() {
+            let [a, b] = c.geom.map(|g| g as usize);
+            let wheel = if self.geom_body(a) == 0 && c.frame[2] > 0.5 { b }
+                else if self.geom_body(b) == 0 && c.frame[2] < -0.5 { a }
+                else { continue };
+            if let Some(i) = wheels.iter().position(|g| *g == wheel) { down[i] = true; }
+        }
+    }
+
     /// MuJoCo's own contacts touching body `b`: (the other geom's name, its body, depth, normal force)
     pub fn contacts_of(&self, b: usize) -> Vec<(String, usize, f64, f64)> {
         let m = self.data.model();

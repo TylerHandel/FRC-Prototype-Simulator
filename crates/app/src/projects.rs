@@ -29,9 +29,7 @@ pub fn fresh_dir(parent: &Path, name: &str) -> PathBuf {
     d
 }
 
-/// The starting points on the Home screen: (title, what it is, the project).
-pub fn starters() -> Vec<(&'static str, &'static str, Project)> {
-    let mut v = vec![];
+pub fn elevator_example() -> Project {
     let mut p = Project::new("Elevator and claw");
     // forward enough that the claw reaches over the REEF's base to an L4 branch
     let mut el = Template::elevator_default();
@@ -41,7 +39,12 @@ pub fn starters() -> Vec<(&'static str, &'static str, Project)> {
     c.mount.on = Some(e);
     templates::add(&mut p.robot, c).unwrap();
     templates::add(&mut p.robot, Template::intake_default()).unwrap();
-    v.push(("Elevator, claw and ground intake", "A REEFSCAPE archetype: a two-stage elevator with a roller claw on its carriage, and an over-the-bumper CORAL intake.", p));
+    p
+}
+
+/// The starting points on the Home screen: (title, what it is, the project).
+pub fn starters() -> Vec<(&'static str, &'static str, Project)> {
+    let mut v = vec![("Elevator, claw and ground intake", "A REEFSCAPE archetype: a two-stage elevator with a roller claw on its carriage, and an over-the-bumper CORAL intake.", elevator_example())];
     let mut p = Project::new("Arm and wrist");
     let a = templates::add(&mut p.robot, Template::arm_default()).unwrap();
     let mut w = Template::wrist_default();

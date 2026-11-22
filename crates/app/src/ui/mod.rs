@@ -3,12 +3,14 @@
 //! required is blank; edit while it runs; a list of what's missing; undo everything; a command
 //! palette (Ctrl+K).
 pub mod analyze;
+pub mod archetype;
 pub mod bench;
 pub mod build;
 pub mod field;
 pub mod home;
 pub mod inspect;
 pub mod rig;
+mod template_fields;
 pub mod widgets;
 
 use bevy::camera::Viewport;
@@ -18,7 +20,7 @@ use bevy_egui::egui::{self, RichText};
 use bevy_egui::{EguiContexts, EguiPrimaryContextPass};
 
 use crate::input::Held;
-use crate::simrun::{Msg, SceneKind, Sim};
+use crate::simrun::{Msg, SceneKind, SceneSetup, Sim};
 use crate::state::{AppState, Workspace};
 use crate::update::{Countdown, UpdateStatus};
 use crate::view::{MainCam, Orbit, PointerOverUi};
@@ -37,6 +39,8 @@ impl Plugin for UiPlugin {
                         let ws = Workspace::from_key(&st.settings.workspace.clone());
                         st.open(last);
                         st.ws = ws;
+                        st.settings.workspace = ws.key().into();
+                        st.settings.save();
                     }
                 }
             });
@@ -47,6 +51,7 @@ fn scene_for(ws: Workspace, current: SceneKind) -> SceneKind {
     match ws {
         Workspace::Bench => SceneKind::Bench,
         Workspace::Field => SceneKind::Field,
+        Workspace::Archetype => SceneKind::TestDrive,
         Workspace::Build | Workspace::Rig | Workspace::Home => SceneKind::Carpet,
         Workspace::Analyze => current,
     }
@@ -55,13 +60,24 @@ fn scene_for(ws: Workspace, current: SceneKind) -> SceneKind {
 /// Keeps the simulation on the project: rebuilds it after an edit (carrying its state across) or a
 /// change of workspace.
 fn sync_sim(mut st: ResMut<AppState>, sim: Res<Sim>, mut last_ws: Local<Option<Workspace>>, mut last_kind: Local<Option<SceneKind>>) {
+    if st.ws == Workspace::Archetype && !st.assembly.driving() || st.ws == Workspace::Home && st.project().archetype {
+        if last_kind.take().is_some() { sim.send(Msg::Unload); }
+        st.sim_rev = u64::MAX;
+        *last_ws = Some(st.ws);
+        return;
+    }
     let current = sim.shared.lock().map(|s| s.kind).unwrap_or(SceneKind::Carpet);
     let kind = scene_for(st.ws, last_kind.unwrap_or(current));
     let changed_ws = *last_ws != Some(st.ws);
     if st.sim_rev != st.doc.revision || changed_ws && *last_kind != Some(kind) {
-        let keep = !changed_ws || *last_kind == Some(kind);
-        let game = if kind == SceneKind::Field { st.game(false).ok().cloned().map(Box::new) } else { None };
-        sim.send(Msg::Load { project: Box::new(st.doc.project.clone()), kind, keep, game });
+        let scene = match kind {
+            SceneKind::TestDrive => archetype::test_drive_setup(&mut st),
+            SceneKind::Carpet => SceneSetup::Carpet,
+            SceneKind::Bench => SceneSetup::Bench,
+            SceneKind::Field => SceneSetup::Field(st.game(false).ok().cloned().map(Box::new)),
+        };
+        let keep = st.sim_rev != u64::MAX && (!changed_ws || *last_kind == Some(kind));
+        sim.send(Msg::Load { project: Box::new(st.doc.project.clone()), scene, keep });
         st.sim_rev = st.doc.revision;
         *last_kind = Some(kind);
     }
@@ -95,7 +111,7 @@ fn ui(
         ui.horizontal_centered(|ui| {
             ui.label(RichText::new("FRC Prototype Simulator").strong().color(ACCENT));
             ui.separator();
-            for w in Workspace::ALL {
+            for &w in st.workspaces() {
                 let on = st.ws == w;
                 if ui.selectable_label(on, RichText::new(w.label()).size(15.0)).on_hover_text(w.hint()).clicked() && !on {
                     st.ws = w;
@@ -107,15 +123,17 @@ fn ui(
             if ui.add_enabled(st.doc.can_undo(), egui::Button::new("Undo")).on_hover_text(format!("Ctrl+Z: {}", st.doc.undo_name().unwrap_or("nothing to undo"))).clicked() { st.doc.undo(); }
             if ui.add_enabled(st.doc.can_redo(), egui::Button::new("Redo")).on_hover_text(format!("Ctrl+Y: {}", st.doc.redo_name().unwrap_or("nothing to redo"))).clicked() { st.doc.redo(); }
             ui.separator();
-            let (playing, speed, rt, err) = sim.shared.lock().map(|s| (s.playing, s.speed, s.realtime, s.error.clone())).unwrap_or((true, 1.0, 1.0, None));
-            if ui.button(if playing { "Pause" } else { "Play" }).on_hover_text("P").clicked() { sim.send(Msg::Play(!playing)); }
-            if ui.button("Step").on_hover_text("One step (paused)").clicked() { sim.send(Msg::StepOnce); }
-            if ui.button("Reset").on_hover_text("R: put everything back where it started").clicked() { sim.send(Msg::Reset); }
-            egui::ComboBox::from_id_salt("speed").selected_text(format!("{speed}x")).width(60.0).show_ui(ui, |ui| {
-                for s in [0.05, 0.1, 0.25, 0.5, 1.0, 2.0] { if ui.selectable_label(speed == s, format!("{s}x")).clicked() { sim.send(Msg::Speed(s)); } }
-            }).response.on_hover_text("Slow motion");
-            if playing && rt < 0.9 * speed { ui.label(RichText::new(format!("{:.0}% of real time", rt * 100.0)).color(WARN)).on_hover_text("This computer can't keep up at this speed; the simulation runs slower than the clock, but stays correct."); }
-            if let Some(e) = err { ui.label(RichText::new("Simulation error").color(BAD)).on_hover_text(e); }
+            if st.ws != Workspace::Archetype || st.assembly.driving() {
+                let (playing, speed, rt, err) = sim.shared.lock().map(|s| (s.playing, s.speed, s.realtime, s.error.clone())).unwrap_or((true, 1.0, 1.0, None));
+                if ui.button(if playing { "Pause" } else { "Play" }).on_hover_text("P").clicked() { sim.send(Msg::Play(!playing)); }
+                if ui.button("Step").on_hover_text("One step (paused)").clicked() { sim.send(Msg::StepOnce); }
+                if ui.button("Reset").on_hover_text("R: put everything back where it started").clicked() { sim.send(Msg::Reset); }
+                egui::ComboBox::from_id_salt("speed").selected_text(format!("{speed}x")).width(60.0).show_ui(ui, |ui| {
+                    for s in [0.05, 0.1, 0.25, 0.5, 1.0, 2.0] { if ui.selectable_label(speed == s, format!("{s}x")).clicked() { sim.send(Msg::Speed(s)); } }
+                }).response.on_hover_text("Slow motion");
+                if playing && rt < 0.9 * speed { ui.label(RichText::new(format!("{:.0}% of real time", rt * 100.0)).color(WARN)).on_hover_text("This computer can't keep up at this speed; the simulation runs slower than the clock, but stays correct."); }
+                if let Some(e) = err { ui.label(RichText::new("Simulation error").color(BAD)).on_hover_text(e); }
+            }
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                 update_notice(ui, st, &updates, &mut countdown, &time, &sim);
                 if ui.button("Ctrl+K").on_hover_text("Find any action by name").clicked() { st.palette_open = true; }
@@ -130,9 +148,25 @@ fn ui(
     let mut left = 0.0;
     let mut right = 0.0;
     let mut bottom = 0.0;
+    let mut view_top = top.bottom();
     match st.ws {
         Workspace::Home => {
             egui::CentralPanel::default().show(&mut root, |ui| home::show(ui, st));
+        }
+        Workspace::Archetype => {
+            archetype::task_bar(&mut root, st, &sim);
+            if !st.assembly.driving() {
+                left = egui::Panel::left("assembly_palette").default_size(208.0).resizable(true).show(&mut root, |ui| {
+                    egui::ScrollArea::vertical().show(ui, |ui| archetype::palette(ui, st));
+                }).response.rect.width();
+            }
+            right = egui::Panel::right("assembly_inspector").default_size(302.0).resizable(true).show(&mut root, |ui| {
+                egui::ScrollArea::vertical().show(ui, |ui| {
+                    let id = match st.sel { crate::state::Selection::Mechanism(id) if st.assembly.editing_layout() => id, _ => model::CHASSIS };
+                    ui.push_id(id, |ui| archetype::inspector(ui, st, &sim));
+                });
+            }).response.rect.width();
+            view_top = archetype::center(&mut root, st, &sim);
         }
         ws => {
             left = egui::Panel::left("left").default_size(330.0).resizable(true).show(&mut root, |ui| {
@@ -142,7 +176,7 @@ fn ui(
                     Workspace::Bench => bench::left(ui, st, &sim),
                     Workspace::Field => field::left(ui, st, &sim),
                     Workspace::Analyze => analyze::left(ui, st, &sim),
-                    Workspace::Home => {}
+                    Workspace::Home | Workspace::Archetype => {}
                 });
             }).response.rect.width();
             right = egui::Panel::right("right").default_size(360.0).resizable(true).show(&mut root, |ui| {
@@ -168,12 +202,12 @@ fn ui(
 
     // the 3D view gets what the panels leave
     let scale = window.scale_factor();
-    let top_h = top.height();
+    let top_h = view_top;
     let pos = UVec2::new((left * scale) as u32, (top_h * scale) as u32);
     let full = UVec2::new(window.physical_width(), window.physical_height());
     let used = UVec2::new(((left + right) * scale) as u32, ((top_h + bottom) * scale) as u32);
     let size = UVec2::new(full.x.saturating_sub(used.x).max(1), full.y.saturating_sub(used.y).max(1));
-    if st.ws == Workspace::Home {
+    if st.ws == Workspace::Home || st.ws == Workspace::Archetype && !st.assembly.driving() {
         cam.viewport = Some(Viewport { physical_position: UVec2::ZERO, physical_size: UVec2::ONE, ..default() });
     } else {
         cam.viewport = Some(Viewport { physical_position: pos, physical_size: size, ..default() });
@@ -198,7 +232,7 @@ fn shortcuts(ctx: &egui::Context, st: &mut AppState, sim: &Sim) {
                 sim.send(Msg::Play(!playing));
             }
             if i.consume_key(egui::Modifiers::NONE, egui::Key::R) { sim.send(Msg::Reset); }
-            if i.key_pressed(egui::Key::Delete) {
+            if i.key_pressed(egui::Key::Delete) && (st.ws != Workspace::Archetype || st.assembly.editing_layout()) {
                 if let crate::state::Selection::Mechanism(m) = st.sel.clone() {
                     st.doc.edit("Remove mechanism", |p| p.robot.remove_mechanism(m));
                     st.sel = crate::state::Selection::Robot;
@@ -297,21 +331,27 @@ fn palette(ctx: &egui::Context, st: &mut AppState, sim: &Sim, exit: &mut Message
         let r = ui.text_edit_singleline(&mut st.palette_query);
         r.request_focus();
         let q = st.palette_query.to_lowercase();
-        let mut actions: Vec<String> = Workspace::ALL.iter().map(|w| format!("Go to {}", w.label())).collect();
+        let mut actions: Vec<String> = st.workspaces().iter().map(|w| format!("Go to {}", w.label())).collect();
         for k in [model::MechKind::Elevator, model::MechKind::Arm, model::MechKind::Wrist, model::MechKind::Telescope, model::MechKind::Intake, model::MechKind::Claw, model::MechKind::Shooter, model::MechKind::Turret, model::MechKind::Climber] {
             actions.push(format!("Add {}", k.label()));
         }
-        actions.extend(["Save", "Undo", "Redo", "Reset simulation", "Pause or play", "Start a match", "Export the run as CSV", "Switch units (in/mm)", "Make every mechanism Full physics", "Make every mechanism Concept", "Quit"].map(String::from));
+        actions.extend(["Save", "Undo", "Redo", "Switch units (in/mm)", "Quit"].map(String::from));
+        if !st.workspaces().contains(&Workspace::Archetype) {
+            actions.extend(["Reset simulation", "Pause or play", "Start a match", "Export the run as CSV", "Make every mechanism Full physics", "Make every mechanism Concept"].map(String::from));
+        }
         let hits: Vec<&String> = actions.iter().filter(|a| q.split_whitespace().all(|w| a.to_lowercase().contains(w))).collect();
         for a in hits.iter().take(12) { if ui.selectable_label(false, a.as_str()).clicked() { chosen = Some((*a).clone()); } }
         if ui.input(|i| i.key_pressed(egui::Key::Enter)) { chosen = hits.first().map(|s| (*s).clone()); }
     });
     if let Some(a) = chosen {
         st.palette_open = false;
-        if let Some(w) = Workspace::ALL.iter().find(|w| a == format!("Go to {}", w.label())) { st.ws = *w; return; }
+        if let Some(w) = st.workspaces().iter().find(|w| a == format!("Go to {}", w.label())) { st.ws = *w; return; }
         if let Some(k) = a.strip_prefix("Add ") {
             for kind in [model::MechKind::Elevator, model::MechKind::Arm, model::MechKind::Wrist, model::MechKind::Telescope, model::MechKind::Intake, model::MechKind::Claw, model::MechKind::Shooter, model::MechKind::Turret, model::MechKind::Climber] {
-                if kind.label() == k { build::add_mechanism(st, kind); st.ws = Workspace::Build; }
+                if kind.label() == k {
+                    if st.project().archetype { archetype::add_suggested(st, kind); st.ws = Workspace::Archetype; }
+                    else { build::add_mechanism(st, kind); st.ws = Workspace::Build; }
+                }
             }
             return;
         }

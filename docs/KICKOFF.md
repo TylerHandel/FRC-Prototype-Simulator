@@ -21,6 +21,37 @@ Any editor works; one that checks JSON (VS Code, Notepad++) helps.
 If something in the file is wrong, the Field panel says what and where ("game.json line 40,
 column 7: ..." or "zone 'Goal': every size must be more than 0"). Fix it, save, Reload.
 
+### Robot size checks in the archetype builder
+
+Choose the game beside **Test drive**. The builder uses the first listed field piece for practice.
+To add size checks, copy the appropriate dimensions from the new manual into an optional
+`robot_size` section of `game.json`. For example, the REBUILT pack uses these values in metres.
+
+```json
+"robot_size": {
+  "perimeter": 2.794,
+  "start_height": 0.762,
+  "start_extension": 0.0,
+  "extension": 0.3048,
+  "operating_height": 0.762,
+  "one_side": true,
+  "source": "https://firstfrc.blob.core.windows.net/frc2026/Manual/HTML/2026GameManual.htm"
+}
+```
+
+Use `perimeter` for the maximum distance around the chassis. Use `start_extension` and
+`extension` for maximum horizontal reach beyond it at the start and while operating.
+Omit `operating_height` if height depends on the robot's location. Set `one_side` when a
+robot may extend over only one chassis edge at a time. While the rules are unknown, omit
+`robot_size` and the builder will show measurements with limits marked unavailable.
+Use **Reload game packs** in the builder's game menu after edits.
+
+The checks measure individual poses on a flat floor using the modeled parts and rectangular
+chassis. Check transitions, location-specific rules, tolerances and inspection exceptions
+against the season manual. The built-in profiles use R102, R104 and R105, plus R106 and
+R107 for REBUILT. [REEFSCAPE manual](https://firstfrc.blob.core.windows.net/frc2025/Manual/HTML/2025GameManual.htm)
+and [REBUILT manual](https://firstfrc.blob.core.windows.net/frc2026/Manual/HTML/2026GameManual.htm).
+
 ## 2. Where things are
 
 Everything is in **metres** and **degrees**. To turn inches into metres, multiply by 0.0254.
@@ -44,6 +75,26 @@ half and add `"mirror": true` to each thing: the red copy is made for you, with 
 changed to "Red". (`"mirror_color"` gives the copy its own colour.)
 
 ## 3. The field
+
+### Add a field model from STEP
+
+Place a self-contained `field.glb` beside `game.json`. The archetype’s **Season field** and the **Field** workspace both load it. The GLB supplies the drawing. The `statics`, `zones` and `feeders` in the game pack still define contacts and scoring. Use **Reload game packs** after replacing either file.
+
+To convert a new competition STEP, run the field converter with the Python environment for `tools/cadread` (cadquery-ocp). For a centred, Z-up STEP with blue at positive X, use:
+
+```sh
+python tools/field_cad.py Field.step field.glb --up z --blue-at positive-x
+```
+
+The converter expects the input origin at field centre on the carpet. It keeps assembly placements, shares repeated meshes and omits small hardware. Use `--omit` with the CAD names of the game pieces so the simulator can move its own pieces. In the output, units are metres, +Y is up, +X points from blue toward red and −Z is blue’s left. Check the carpet height and both alliance ends against the pack. An optional `practice_start` with the same format as `start` can give a test robot a clear pickup lane.
+
+The bundled visuals come from FIRST’s full competition assemblies. REEFSCAPE uses Y-up and blue at negative X. REBUILT uses Z-up and blue at positive X. Their extracted STEP SHA-256 hashes are recorded inside the GLBs. The converter gives clear guardrail sheets and carpet display materials. The models omit the CAD’s stationary game pieces. [REEFSCAPE STEP archive](https://firstfrc.blob.core.windows.net/frc2025/FieldAssets/2025Field-STEP.zip) · [REBUILT STEP](https://firstfrc.blob.core.windows.net/frc2026/FieldAssets/FE-2026-rev-rebuilt-playing-field.step)
+
+### Add a scoring reference to the 2D drawing
+
+For a scoring reference in the archetype drawing, add an optional `design_reference` to `game.json`. Give it a `name` and a `side` and `top` view. Each view contains `contours` (closed paths) and optional `labels` with `text`, `at` and an optional leader endpoint `tip`. Use metre coordinates from the front bumper aligned with the structure, at carpet height. The axes are forward/up for Side and forward/left for Top. The REEFSCAPE pack includes a working example.
+
+### Define the field contact shapes
 
 ```json
 "field": { "length": 16.541, "width": 8.069, "carpet_friction": 1.0 },

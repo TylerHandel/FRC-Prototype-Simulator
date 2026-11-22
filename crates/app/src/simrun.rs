@@ -4,7 +4,7 @@
 use bevy::prelude::*;
 use library::Library;
 use model::{Button, Id, Project};
-use sim::world::{Scene, World};
+use sim::world::{Scene, TubeOrientation, World};
 use sim::Snapshot;
 use std::collections::VecDeque;
 use std::sync::mpsc::{channel, Receiver, Sender};
@@ -12,15 +12,35 @@ use std::sync::{Arc, Mutex};
 use std::time::Instant;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum SceneKind { Carpet, Field, Bench }
+pub enum SceneKind { Carpet, Field, Bench, TestDrive }
+
+pub enum SceneSetup {
+    Carpet,
+    Field(Option<Box<sim::game::Found>>),
+    Bench,
+    TestDrive { pieces: Vec<library::Piece>, selected: String, tube: TubeOrientation, field: Option<Box<sim::game::GamePack>> },
+}
+
+impl SceneSetup {
+    fn kind(&self) -> SceneKind {
+        match self {
+            Self::Carpet => SceneKind::Carpet, Self::Field(_) => SceneKind::Field,
+            Self::Bench => SceneKind::Bench, Self::TestDrive { .. } => SceneKind::TestDrive,
+        }
+    }
+}
 
 pub enum Msg {
     /// Build the world for this project; keep the state across if the scene is the same (an edit)
-    Load { project: Box<Project>, kind: SceneKind, keep: bool, game: Option<Box<sim::game::Found>> },
+    Load { project: Box<Project>, scene: SceneSetup, keep: bool },
+    /// The archetype drawing is kinematic. Release the previous simulation until Drive is opened.
+    Unload,
     Play(bool),
     Speed(f64),
     StepOnce,
     Reset,
+    PlacePracticePiece { id: String, tube: TubeOrientation, claw: Option<Id> },
+    ReefAlign { right: bool, down: bool },
     Drive { v: [f64; 3], field_relative: bool },
     Button(Button, bool),
     Run(Id, Option<f64>),
@@ -40,12 +60,19 @@ pub struct Shared {
     /// sim seconds per wall second, over the last half second
     pub realtime: f64,
     pub kind: SceneKind,
+    pub field: Option<String>,
     /// bumped each time a world is built
     pub generation: u64,
     pub bench_throws: u32,
     pub log: Vec<sim::game::Event>,
     pub drive_names: Vec<(Id, String)>,
     pub dt: f64,
+}
+
+impl Shared {
+    pub fn test_drive_ready(&self) -> bool {
+        self.kind == SceneKind::TestDrive && self.snap.is_some() && self.error.is_none()
+    }
 }
 
 #[derive(Resource, Clone)]
@@ -64,7 +91,7 @@ impl Plugin for SimPlugin {
         let (tx, rx) = channel();
         let shared = Arc::new(Mutex::new(Shared {
             snap: None, history: VecDeque::new(), error: None, warnings: vec![], playing: true, speed: 1.0, realtime: 1.0,
-            kind: SceneKind::Carpet, generation: 0, bench_throws: 0, log: vec![], drive_names: vec![], dt: 0.002,
+            kind: SceneKind::Carpet, field: None, generation: 0, bench_throws: 0, log: vec![], drive_names: vec![], dt: 0.002,
         }));
         let s2 = shared.clone();
         std::thread::Builder::new().name("simulation".into()).spawn(move || run(rx, s2)).expect("simulation thread");
@@ -75,17 +102,24 @@ impl Plugin for SimPlugin {
 const HISTORY_EVERY: f64 = 0.01;
 const HISTORY_MAX: usize = 30_000;
 
-fn build(project: &Project, lib: &Library, kind: SceneKind, throw: u32, game: Option<&sim::game::Found>) -> anyhow::Result<World> {
-    match kind {
-        SceneKind::Carpet => World::new(project, lib, Scene::carpet()),
-        SceneKind::Field => {
-            let found = game.ok_or_else(|| anyhow::anyhow!("no game pack '{}'", project.game))?;
+fn build(project: &Project, lib: &Library, setup: &SceneSetup, throw: u32) -> anyhow::Result<World> {
+    match setup {
+        SceneSetup::Carpet => World::new(project, lib, Scene::carpet()),
+        SceneSetup::TestDrive { pieces, selected, tube, field } => {
+            let mut lib = lib.clone();
+            lib.pieces.clone_from(pieces);
+            let mut w = World::practice(project, &lib, selected, field.as_deref())?;
+            if *tube != TubeOrientation::Crosswise { w.place_piece(selected, *tube, None); }
+            Ok(w)
+        }
+        SceneSetup::Field(game) => {
+            let found = game.as_ref().ok_or_else(|| anyhow::anyhow!("no game pack '{}'", project.game))?;
             // the pack's own pieces join the library
             let mut lib = lib.clone();
             if let Some(d) = &found.dir { lib.load_overlay(d).map_err(|e| anyhow::anyhow!("the game pack's pieces.json: {e}"))?; }
             World::new(project, &lib, Scene::field(&found.pack))
         }
-        SceneKind::Bench => {
+        SceneSetup::Bench => {
             let mut scene = Scene::bench();
             let probe = World::new(project, lib, scene.clone())?;
             let bumper = project.robot.frame.length / 2.0 + project.robot.frame.bumper_thickness;
@@ -114,7 +148,7 @@ fn run(rx: Receiver<Msg>, shared: Arc<Mutex<Shared>>) {
     };
     let mut world: Option<World> = None;
     let mut project: Option<Project> = None;
-    let mut last_game: Option<sim::game::Found> = None;
+    let mut setup = SceneSetup::Carpet;
     let mut kind = SceneKind::Carpet;
     let mut playing = true;
     let mut speed = 1.0;
@@ -136,17 +170,28 @@ fn run(rx: Receiver<Msg>, shared: Arc<Mutex<Shared>>) {
         }
         for m in pending.drain(..) {
             match m {
-                Msg::Load { project: p, kind: k, keep, game: g } => {
-                    last_game = g.map(|b| *b);
+                Msg::Unload => {
+                    world = None;
+                    project = None;
+                    step_once = false;
+                    let mut s = shared.lock().unwrap();
+                    s.snap = None;
+                    s.field = None;
+                    s.error = None;
+                    s.warnings.clear();
+                }
+                Msg::Load { project: p, scene, keep } => {
+                    let k = scene.kind();
                     let same = keep && k == kind && world.is_some();
                     if k != kind { throw = 0; }
-                    match build(&p, &lib, k, throw, last_game.as_ref()) {
+                    match build(&p, &lib, &scene, throw) {
                         Ok(mut w) => {
                             if same { if let Some(old) = &world { w.carry_from(old); } }
                             let mut s = shared.lock().unwrap();
                             s.error = None;
                             s.warnings = w.warnings.clone();
                             s.kind = k;
+                            s.field = w.scene.game.as_ref().map(|g| g.id.clone());
                             s.generation += 1;
                             s.drive_names = p.robot.drives.iter().map(|d| (d.id, d.name.clone())).collect();
                             s.dt = w.dt;
@@ -155,6 +200,7 @@ fn run(rx: Receiver<Msg>, shared: Arc<Mutex<Shared>>) {
                             world = Some(w);
                             project = Some(*p);
                             kind = k;
+                            setup = scene;
                         }
                         Err(e) => { shared.lock().unwrap().error = Some(format!("{e}")); }
                     }
@@ -166,11 +212,23 @@ fn run(rx: Receiver<Msg>, shared: Arc<Mutex<Shared>>) {
                 Msg::Reset => {
                     if let Some(p) = &project {
                         throw += 1;
-                        if let Ok(w) = build(p, &lib, kind, throw, last_game.as_ref()) {
+                        if let Ok(w) = build(p, &lib, &setup, throw) {
                             let mut s = shared.lock().unwrap();
                             s.history.clear(); s.log.clear(); s.generation += 1; s.snap = Some(w.snapshot());
                             world = Some(w); last_hist = -1.0;
                         }
+                    }
+                }
+                Msg::ReefAlign { right, down } => if let Some(w) = &mut world { w.reef_align(right, down); },
+                Msg::PlacePracticePiece { id, tube: orientation, claw } => {
+                    if let (Some(w), SceneSetup::TestDrive { selected, tube, .. }) = (&mut world, &mut setup)
+                        && w.place_piece(&id, orientation, claw)
+                    {
+                        let mut s = shared.lock().unwrap();
+                        if *selected != id { s.generation += 1; }
+                        *selected = id;
+                        *tube = orientation;
+                        s.snap = Some(w.snapshot());
                     }
                 }
                 Msg::Drive { v, field_relative } => if let Some(w) = &mut world { w.cmd.drive = v; w.cmd.field_relative = field_relative; },
@@ -206,7 +264,7 @@ fn run(rx: Receiver<Msg>, shared: Arc<Mutex<Shared>>) {
         // the Bench throws again when a throw is done
         if kind == SceneKind::Bench && w.time > project.as_ref().map_or(1.5, |p| p.bench.duration) + 0.4 {
             throw += 1;
-            if let Some(p) = &project { if let Ok(nw) = build(p, &lib, kind, throw, last_game.as_ref()) { *w = nw; let mut s = shared.lock().unwrap(); s.bench_throws = throw; s.generation += 1; s.history.clear(); last_hist = -1.0; } }
+            if let Some(p) = &project { if let Ok(nw) = build(p, &lib, &setup, throw) { *w = nw; let mut s = shared.lock().unwrap(); s.bench_throws = throw; s.generation += 1; s.history.clear(); last_hist = -1.0; } }
         }
         if n > 0 {
             rt_sim += n as f64 * w.dt;

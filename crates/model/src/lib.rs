@@ -24,6 +24,9 @@ pub const CHASSIS: Id = 1;
 pub struct Project {
     pub schema: u32,
     pub name: String,
+    /// Open a concept created in the archetype editor in that workspace again.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub archetype: bool,
     pub robot: Robot,
     #[serde(default)]
     pub bench: Bench,
@@ -41,7 +44,7 @@ fn default_game() -> String { "reefscape-2025".into() }
 
 impl Project {
     pub fn new(name: &str) -> Self {
-        Project { schema: SCHEMA, name: name.into(), robot: Robot::new(name), bench: Bench::default(), game: default_game(), force_fidelity: None, notes: String::new() }
+        Project { schema: SCHEMA, name: name.into(), archetype: false, robot: Robot::new(name), bench: Bench::default(), game: default_game(), force_fidelity: None, notes: String::new() }
     }
     pub fn to_json(&self) -> String { serde_json::to_string_pretty(self).expect("project to json") }
     pub fn from_json(s: &str) -> anyhow::Result<Self> {
@@ -115,6 +118,19 @@ impl Robot {
     pub fn joint_mut(&mut self, id: Id) -> Option<&mut Joint> { self.joints.iter_mut().find(|j| j.id == id) }
     pub fn drive(&self, id: Id) -> Option<&Drive> { self.drives.iter().find(|d| d.id == id) }
     pub fn drive_mut(&mut self, id: Id) -> Option<&mut Drive> { self.drives.iter_mut().find(|d| d.id == id) }
+    pub fn starting_preset(&self) -> Option<&Preset> {
+        let id = self.controls.start_position?;
+        self.controls.presets.iter().find(|p| p.id == id)
+    }
+    /// Partial positions leave other joint settings alone. Saturate setpoints at the current
+    /// joint limits, including when a team has shortened a mechanism since teaching it.
+    pub fn position_targets(&self, preset: &Preset) -> std::collections::HashMap<Id, f64> {
+        preset.targets.iter().filter_map(|t| {
+            let DriveTarget::Joint { joint, .. } = self.drive(t.drive)?.target else { return None };
+            let range = self.joint(joint)?.range;
+            Some((joint, range.map_or(t.value, |[a,b]| t.value.clamp(a.min(b), a.max(b)))))
+        }).collect()
+    }
     pub fn shaft(&self, id: Id) -> Option<&Shaft> { self.shafts.iter().find(|s| s.id == id) }
     pub fn roller(&self, id: Id) -> Option<&Roller> { self.rollers.iter().find(|r| r.id == id) }
     pub fn roller_mut(&mut self, id: Id) -> Option<&mut Roller> { self.rollers.iter_mut().find(|r| r.id == id) }
@@ -145,6 +161,17 @@ impl Robot {
     pub fn remove_mechanism(&mut self, id: Id) {
         let Some(m) = self.mechanism(id).cloned() else { return };
         let links: Vec<Id> = m.links.clone();
+        // Keep mounted assemblies in their design position when their carrier is removed.
+        let detached: Vec<_> = self.mechanisms.iter().filter_map(|child| {
+            let t = child.template.as_ref()?;
+            (t.mount.on == Some(id)).then(|| (child.id, templates::detached_mount(self, t)))
+        }).collect();
+        for (child, mount) in detached {
+            if let Some(t) = self.mechanism_mut(child).and_then(|m| m.template.as_mut()) { t.mount = mount; }
+        }
+        for j in &mut self.joints {
+            if links.contains(&j.parent) && !links.contains(&j.child) { j.parent = CHASSIS; }
+        }
         let joints: Vec<Id> = self.joints.iter().filter(|j| links.contains(&j.child)).map(|j| j.id).collect();
         let shafts: Vec<Id> = self.shafts.iter().filter(|s| links.contains(&s.link)).map(|s| s.id).collect();
         self.links.retain(|l| !links.contains(&l.id));
@@ -156,17 +183,27 @@ impl Robot {
             DriveTarget::Shaft { shaft } => !shafts.contains(&shaft),
         });
         let drives: Vec<Id> = self.drives.iter().map(|d| d.id).collect();
-        for p in &mut self.controls.presets { p.targets.retain(|t| drives.contains(&t.drive)); }
-        self.controls.bindings.retain(|b| match &b.action { Action::Run { drive, .. } => drives.contains(drive), _ => true });
+        self.controls.roller_hold_amps.retain(|drive, _| drives.contains(drive));
+        self.controls.presets.retain_mut(|p| {
+            let was_empty = p.targets.is_empty();
+            p.targets.retain(|t| drives.contains(&t.drive));
+            was_empty || !p.targets.is_empty()
+        });
+        if self.starting_preset().is_none() { self.controls.start_position = None; }
+        self.controls.bindings.retain(|b| match &b.action {
+            Action::Run { drive, .. } => drives.contains(drive),
+            Action::Preset { preset } => self.controls.presets.iter().any(|p| p.id == *preset),
+            Action::Release { mechanism } => *mechanism != id,
+        });
         self.sensors.retain(|s| !links.contains(&s.link()));
         self.mechanisms.retain(|m| m.id != id);
-        // mechanisms mounted on this one fall back to the chassis
-        for m in &mut self.mechanisms {
-            if let Some(t) = &mut m.template { if t.mount.on == Some(id) { t.mount.on = None; } }
-        }
     }
     /// total mass of the description (links as stated or estimated from their shapes), kg
     pub fn mass(&self) -> f64 { self.links.iter().map(|l| l.mass_or_estimate()).sum() }
+    /// Scales the modeled links to the measured robot weight, when one was supplied.
+    pub fn mass_scale(&self) -> f64 {
+        self.weighed_mass.filter(|w| w.is_finite() && *w > 0.0).map_or(1.0, |w| w / self.mass().max(1e-6))
+    }
 }
 
 pub fn chassis_link(f: &Frame) -> Link {
@@ -554,6 +591,8 @@ pub struct Pickup {
     pub link: Id,
     /// centre and full size, robot frame at design pose
     pub center: V3,
+    #[serde(default = "math::qi")]
+    pub quat: Quat,
     pub size: V3,
     pub acquire_time: f64,
     /// the drive that must run (in the sense that pulls pieces in) for pickup
@@ -624,6 +663,14 @@ impl Default for Electrical {
 /// Controls without code (D12): presets and what the gamepad does.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default)]
 pub struct Controls {
+    /// Signed idle stator current per motor, keyed by roller drive.
+    #[serde(default, skip_serializing_if = "std::collections::BTreeMap::is_empty")]
+    pub roller_hold_amps: std::collections::BTreeMap<Id, f64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub start_position: Option<Id>,
+    /// Optional keyboard equivalents for the operator buttons, stored per robot.
+    #[serde(default, skip_serializing_if = "std::collections::BTreeMap::is_empty")]
+    pub keys: std::collections::BTreeMap<Button, String>,
     pub presets: Vec<Preset>,
     pub bindings: Vec<Binding>,
 }
@@ -633,13 +680,36 @@ pub struct Preset {
     pub id: Id,
     pub name: String,
     pub targets: Vec<PresetTarget>,
+    /// Clear distance from the front bumper to the reef face, in metres.
+    #[serde(default = "default_reef_gap")]
+    pub reef_gap: f64,
 }
+
+pub fn default_reef_gap() -> f64 { 0.05 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct PresetTarget { pub drive: Id, pub value: f64 }
 
-#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub enum Button { A, B, X, Y, LB, RB, LT, RT, Up, Down, Left, Right, Start, Back, LStick, RStick }
+
+impl Controls {
+    pub fn key(&self, button: Button) -> &str { self.keys.get(&button).map(String::as_str).unwrap_or(button.key()) }
+    pub fn reef_gap(&self, position: Option<Id>) -> f64 {
+        self.presets.iter().find(|p| Some(p.id) == position).map_or_else(default_reef_gap, |p| p.reef_gap.max(0.))
+    }
+    /// Reserve the two bumpers for the driver on the reef. Keep existing operator
+    /// shortcuts and shared actions together, assigning occupied bumpers a spare pad control.
+    pub fn reef_pad(&self, b: Button) -> Option<Button> {
+        if !matches!(b, Button::LB | Button::RB) { return Some(b); }
+        if !self.bindings.iter().any(|x| x.button == b) { return None; }
+        let mut spare = [Button::RT, Button::LT, Button::X, Button::Y, Button::A, Button::B,
+            Button::Up, Button::Down, Button::Left, Button::Right, Button::LStick, Button::RStick, Button::Back, Button::Start]
+            .into_iter().filter(|p| !self.bindings.iter().any(|x| x.button == *p));
+        if b == Button::LB && self.bindings.iter().any(|x| x.button == Button::RB) { spare.next(); }
+        spare.next()
+    }
+}
 
 impl Button {
     pub const ALL: [Button; 16] = [Button::A, Button::B, Button::X, Button::Y, Button::LB, Button::RB, Button::LT, Button::RT,

@@ -10,6 +10,8 @@ const DEG: f64 = std::f64::consts::PI / 180.0;
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct Template {
+    #[serde(default)]
+    pub wheel_edits: library::profile::WheelEdits,
     pub mount: Mount,
     pub params: Params,
 }
@@ -21,7 +23,12 @@ pub struct Mount {
     #[serde(default)]
     pub on: Option<Id>,
     pub offset: V3,
+    /// Roll about forward, pitch about left, yaw about up, in the mounting frame.
+    #[serde(default, skip_serializing_if = "zero_angles")]
+    pub rotation_deg: V3,
 }
+
+fn zero_angles(v: &V3) -> bool { *v == [0.0; 3] }
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "lowercase")]
@@ -35,7 +42,7 @@ pub enum Params {
     Wrist { length: f64, width: f64, mass: f64, motor: String, motors: u32, ratio: f64, min_deg: f64, max_deg: f64, start_deg: f64 },
     Telescope { travel: f64, length: f64, mass: f64, motor: String, motors: u32, ratio: f64, spool_diameter: f64 },
     Intake { width: f64, height: f64, ramp_deg: f64, rollers: u32, wheel: String, wheels_per_roller: u32, motor: String, ratio: f64, mass: f64, deploy: bool, deploy_ratio: f64 },
-    Claw { width: f64, gap: f64, depth: f64, wheel: String, motor: String, ratio: f64, mass: f64 },
+    Claw { width: f64, gap: f64, depth: f64, #[serde(default)] open_plates: bool, wheel: String, motor: String, ratio: f64, mass: f64 },
     Shooter { wheel: String, width: f64, motor: String, motors: u32, ratio: f64, hood_deg: f64, mass: f64, efficiency: f64 },
     Turret { radius: f64, motor: String, ratio: f64, mass: f64, range_deg: f64 },
     Climber { length: f64, motor: String, motors: u32, ratio: f64, mass: f64 },
@@ -54,42 +61,50 @@ impl Params {
 impl Template {
     /// a 2-stage cascade elevator at the robot's centre, for REEFSCAPE L4
     pub fn elevator_default() -> Self {
-        Template { mount: Mount { on: None, offset: [-0.05, 0.0, 0.09] }, params: Params::Elevator {
+        Template { wheel_edits: Default::default(), mount: Mount { rotation_deg: [0.0; 3], on: None, offset: [-0.05, 0.0, 0.09] }, params: Params::Elevator {
             stages: 2, travel: 1.45, height: 0.95, width: 0.3, rigging: Rigging::Cascade, spool_diameter: 1.75 * IN,
             motor: "kraken-x60-foc".into(), motors: 2, ratio: 5.0, carriage_mass: 3.0, stage_mass: 2.5 } }
     }
     pub fn arm_default() -> Self {
-        Template { mount: Mount { on: None, offset: [0.0, 0.0, 0.5] }, params: Params::Arm {
+        Template { wheel_edits: Default::default(), mount: Mount { rotation_deg: [0.0; 3], on: None, offset: [0.0, 0.0, 0.5] }, params: Params::Arm {
             length: 0.5, width: 0.1, mass: 3.0, motor: "kraken-x60-foc".into(), motors: 1, ratio: 60.0, min_deg: -60.0, max_deg: 120.0, start_deg: 90.0 } }
     }
     pub fn wrist_default() -> Self {
-        Template { mount: Mount { on: None, offset: [0.0, 0.0, 0.0] }, params: Params::Wrist {
+        Template { wheel_edits: Default::default(), mount: Mount { rotation_deg: [0.0; 3], on: None, offset: [0.0, 0.0, 0.0] }, params: Params::Wrist {
             length: 0.18, width: 0.15, mass: 1.5, motor: "kraken-x44-foc".into(), motors: 1, ratio: 30.0, min_deg: -90.0, max_deg: 135.0, start_deg: 90.0 } }
     }
     pub fn telescope_default() -> Self {
-        Template { mount: Mount { on: None, offset: [0.0, 0.0, 0.0] }, params: Params::Telescope {
+        Template { wheel_edits: Default::default(), mount: Mount { rotation_deg: [0.0; 3], on: None, offset: [0.0, 0.0, 0.0] }, params: Params::Telescope {
             travel: 0.5, length: 0.6, mass: 2.0, motor: "kraken-x60-foc".into(), motors: 1, ratio: 9.0, spool_diameter: 1.5 * IN } }
     }
     /// an over-the-bumper CORAL floor intake: one roller pinching the pipe against the carpet
     pub fn intake_default() -> Self {
-        Template { mount: Mount { on: None, offset: [0.0, 0.0, 0.0] }, params: Params::Intake {
+        Template { wheel_edits: Default::default(), mount: Mount { rotation_deg: [0.0; 3], on: None, offset: [0.0, 0.0, 0.0] }, params: Params::Intake {
             width: 0.5, height: 6.1 * IN, ramp_deg: 30.0, rollers: 2, wheel: "am-compliant-4in-35a".into(), wheels_per_roller: 4,
             motor: "kraken-x60-foc".into(), ratio: 3.0, mass: 3.0, deploy: false, deploy_ratio: 40.0 } }
     }
     pub fn claw_default() -> Self {
-        Template { mount: Mount { on: None, offset: [0.0, 0.0, 0.0] }, params: Params::Claw {
-            width: 0.32, gap: 3.9 * IN, depth: 0.2, wheel: "am-compliant-2in-35a".into(), motor: "kraken-x44-foc".into(), ratio: 3.0, mass: 2.0 } }
+        Template { wheel_edits: Default::default(), mount: Mount { rotation_deg: [0.0; 3], on: None, offset: [0.0, 0.0, 0.0] }, params: Params::Claw {
+            width: 0.32, gap: 3.9 * IN, depth: 0.2, open_plates: false, wheel: "am-compliant-2in-35a".into(), motor: "kraken-x44-foc".into(), ratio: 3.0, mass: 2.0 } }
+    }
+    pub fn upright_coral(&mut self) {
+        if let Params::Claw { gap, depth, open_plates, .. } = &mut self.params {
+            self.mount.rotation_deg[0] = 90.;
+            *gap = 4.25 * IN;
+            *depth = 3.75 * IN;
+            *open_plates = true;
+        }
     }
     pub fn shooter_default() -> Self {
-        Template { mount: Mount { on: None, offset: [-0.1, 0.0, 0.45] }, params: Params::Shooter {
+        Template { wheel_edits: Default::default(), mount: Mount { rotation_deg: [0.0; 3], on: None, offset: [-0.1, 0.0, 0.45] }, params: Params::Shooter {
             wheel: "colson-4in".into(), width: 0.3, motor: "kraken-x60-foc".into(), motors: 2, ratio: 1.0, hood_deg: 55.0, mass: 4.0, efficiency: 0.45 } }
     }
     pub fn turret_default() -> Self {
-        Template { mount: Mount { on: None, offset: [0.0, 0.0, 0.25] }, params: Params::Turret {
+        Template { wheel_edits: Default::default(), mount: Mount { rotation_deg: [0.0; 3], on: None, offset: [0.0, 0.0, 0.25] }, params: Params::Turret {
             radius: 0.15, motor: "kraken-x44-foc".into(), ratio: 40.0, mass: 2.0, range_deg: 200.0 } }
     }
     pub fn climber_default() -> Self {
-        Template { mount: Mount { on: None, offset: [-0.2, 0.0, 0.3] }, params: Params::Climber {
+        Template { wheel_edits: Default::default(), mount: Mount { rotation_deg: [0.0; 3], on: None, offset: [-0.2, 0.0, 0.3] }, params: Params::Climber {
             length: 0.45, motor: "kraken-x60-foc".into(), motors: 1, ratio: 125.0, mass: 2.5 } }
     }
     pub fn default_for(kind: MechKind) -> Option<Self> {
@@ -103,26 +118,55 @@ impl Template {
 }
 
 /// The point a mechanism mounted on this one attaches to, robot frame, design pose.
-pub fn tip(r: &Robot, m: &Mechanism) -> V3 {
+fn tip_pose(r: &Robot, m: &Mechanism) -> Pose {
     let Some(t) = &m.template else {
-        return m.links.last().and_then(|l| r.link(*l)).and_then(|l| l.shapes.first()).map_or([0.0; 3], |s| s.pose.pos);
+        return Pose::at(m.links.last().and_then(|l| r.link(*l)).and_then(|l| l.shapes.first()).map_or([0.0; 3], |s| s.pose.pos));
     };
-    let base = mount_point(r, &t.mount);
-    match &t.params {
-        Params::Elevator { height, .. } => math::add(base, [0.12, 0.0, height * 0.35]),
-        Params::Arm { length, .. } | Params::Wrist { length, .. } => math::add(base, [*length, 0.0, 0.0]),
-        Params::Telescope { length, .. } => math::add(base, [*length, 0.0, 0.0]),
-        Params::Turret { .. } => math::add(base, [0.0, 0.0, 0.08]),
-        Params::Climber { length, .. } => math::add(base, [0.0, 0.0, *length]),
-        Params::Intake { .. } | Params::Claw { .. } | Params::Shooter { .. } => base,
-    }
+    let tip = match &t.params {
+        Params::Elevator { height, .. } => [0.12, 0.0, height * 0.35],
+        Params::Arm { length, .. } | Params::Wrist { length, .. } | Params::Telescope { length, .. } => [*length, 0.0, 0.0],
+        Params::Turret { .. } => [0.0, 0.0, 0.08],
+        Params::Climber { length, .. } => [0.0, 0.0, *length],
+        Params::Intake { .. } | Params::Claw { .. } | Params::Shooter { .. } => [0.0; 3],
+    };
+    geometry_pose(r, t).mul(&Pose::at(tip))
+}
+
+pub fn tip(r: &Robot, m: &Mechanism) -> V3 { tip_pose(r, m).pos }
+
+pub fn mount_frame(r: &Robot, on: Option<Id>) -> Pose {
+    on.and_then(|id| r.mechanism(id)).map_or_else(Pose::default, |m| tip_pose(r, m))
 }
 
 pub fn mount_point(r: &Robot, mount: &Mount) -> V3 {
-    match mount.on.and_then(|id| r.mechanism(id)) {
-        Some(parent) => math::add(tip(r, parent), mount.offset),
-        None => mount.offset,
-    }
+    mount_frame(r, mount.on).apply(mount.offset)
+}
+
+fn local_pivot(r: &Robot, t: &Template) -> V3 {
+    if matches!(t.params, Params::Intake { .. }) {
+        let front = if t.mount.on.is_none() { r.frame.length / 2.0 + r.frame.bumper_thickness } else { 0.0 };
+        [front - 0.04, 0.0, r.frame.bumper_bottom + r.frame.bumper_height + 0.06]
+    } else { [0.0; 3] }
+}
+
+pub fn placement_anchor(r: &Robot, t: &Template) -> V3 {
+    mount_frame(r, t.mount.on).apply(math::add(t.mount.offset, local_pivot(r, t)))
+}
+
+/// Maps a stock template's geometry into robot design coordinates, rotating about its attachment.
+pub fn geometry_pose(r: &Robot, t: &Template) -> Pose {
+    let pivot = local_pivot(r, t);
+    let q = math::euler_to_quat(t.mount.rotation_deg.map(f64::to_radians));
+    let shift = math::sub(pivot, math::qrot(q, pivot));
+    mount_frame(r, t.mount.on).mul(&Pose::new(math::add(t.mount.offset, shift), q))
+}
+
+pub(crate) fn detached_mount(r: &Robot, t: &Template) -> Mount {
+    let pivot = placement_anchor(r, t);
+    let rotation_deg = geometry_pose(r, t).euler_deg();
+    let mut detached = t.clone();
+    detached.mount.on = None;
+    Mount { on: None, offset: math::sub(pivot, local_pivot(r, &detached)), rotation_deg }
 }
 
 fn mount_link(r: &Robot, mount: &Mount) -> Id {
@@ -136,14 +180,66 @@ pub fn add(r: &mut Robot, t: Template) -> anyhow::Result<Id> {
     Ok(id)
 }
 
+/// An attachment must end at the chassis without revisiting the assembly being moved.
+pub fn can_mount(r: &Robot, child: Id, mut parent: Option<Id>) -> bool {
+    for _ in 0..=r.mechanisms.len() {
+        let Some(id) = parent else { return true };
+        if id == child { return false; }
+        let Some(m) = r.mechanism(id) else { return false };
+        parent = m.template.as_ref().and_then(|t| t.mount.on);
+    }
+    false
+}
+
 /// Rebuilds a template mechanism after its numbers changed, keeping the ids of what it made.
 pub fn rebuild(r: &mut Robot, id: Id, t: Template) -> anyhow::Result<()> {
+    // Beam endpoints are stored in design coordinates. Keep their local positions even
+    // when an edit rotates a carrier several levels above the sensor's own link.
+    let mut beams = Vec::new();
+    for (i, sensor) in r.sensors.iter().enumerate() {
+        let Sensor::BeamBreak { link, from, to, .. } = sensor else { continue };
+        let Some(m) = r.mechanism_of_link(*link) else { continue };
+        if can_mount(r, id, Some(m.id)) { continue; }
+        if let Some(t) = &m.template {
+            let frame = geometry_pose(r, t);
+            beams.push((i, m.id, frame, *from, *to));
+        }
+    }
+    rebuild_tree(r, id, t)?;
+    for (i, owner, old, a, b) in beams {
+        let Some(t) = r.mechanism(owner).and_then(|m| m.template.as_ref()) else { continue };
+        let new = geometry_pose(r, t);
+        if new != old && let Sensor::BeamBreak { from, to, .. } = &mut r.sensors[i] {
+            let change = new.mul(&old.inverse());
+            *from = change.apply(a);
+            *to = change.apply(b);
+        }
+    }
+    Ok(())
+}
+
+fn rebuild_tree(r: &mut Robot, id: Id, t: Template) -> anyhow::Result<()> {
+    anyhow::ensure!(can_mount(r, id, t.mount.on), "Choose a mount outside this mechanism's own assembly.");
     let old = r.mechanism(id).cloned().ok_or_else(|| anyhow::anyhow!("no mechanism {id}"))?;
     let mut ids = Ids::from_mechanism(r, &old);
     let (name, fidelity, color) = (old.name.clone(), old.fidelity, old.color.clone());
     // mechanisms mounted on this one keep their mount
     let children: Vec<Id> = r.mechanisms.iter().filter(|m| m.template.as_ref().is_some_and(|t| t.mount.on == Some(id))).map(|m| m.id).collect();
-    let presets = r.controls.presets.clone();
+    let mut presets = r.controls.presets.clone();
+    // A stock "up" or "mid" command follows the resized elevator. Preserve edited setpoints.
+    if let Some(Params::Elevator { travel, stages, .. }) = old.template.as_ref().map(|t| &t.params)
+        && let Params::Elevator { travel: new_travel, stages: new_stages, .. } = &t.params
+    {
+        let drive = ids.drives.first().copied();
+        for p in &mut presets {
+            let fraction = match p.name.as_str() { "Elevator up" => 1.0, "Elevator mid" => 0.5, _ => continue };
+            if let [target] = p.targets.as_mut_slice() && Some(target.drive) == drive
+                && (target.value - travel / (*stages).clamp(1, 4) as f64 * fraction).abs() < 1e-9
+            {
+                target.value = new_travel / (*new_stages).clamp(1, 4) as f64 * fraction;
+            }
+        }
+    }
     let bindings = r.controls.bindings.clone();
     remove_owned(r, &old);
     let at = r.mechanisms.iter().position(|m| m.id == id).unwrap_or(r.mechanisms.len());
@@ -159,7 +255,7 @@ pub fn rebuild(r: &mut Robot, id: Id, t: Template) -> anyhow::Result<()> {
     r.controls.presets = presets.into_iter().map(|mut p| { p.targets.retain(|t| drives.contains(&t.drive)); p }).collect();
     r.controls.bindings = bindings.into_iter().filter(|b| match &b.action { Action::Run { drive, .. } => drives.contains(drive), _ => true }).collect();
     for c in children {
-        if let Some(t) = r.mechanism(c).and_then(|m| m.template.clone()) { rebuild(r, c, t)?; }
+        if let Some(t) = r.mechanism(c).and_then(|m| m.template.clone()) { rebuild_tree(r, c, t)?; }
     }
     Ok(())
 }
@@ -246,7 +342,9 @@ fn wheel_size(wheel: &str) -> (f64, f64) {
 }
 
 fn build(r: &mut Robot, id: Id, t: Template, ids: &mut Ids) -> anyhow::Result<()> {
-    let base = mount_point(r, &t.mount);
+    let placement = geometry_pose(r, &t);
+    let base = [0.0; 3];
+    let (first_link, first_joint, first_roller) = (r.links.len(), r.joints.len(), r.rollers.len());
     let parent = mount_link(r, &t.mount);
     let kind = t.params.kind();
     let mut m = Mechanism { id, name: kind.label().into(), kind, fidelity: Fidelity::Concept, links: vec![], template: None,
@@ -338,7 +436,7 @@ fn build(r: &mut Robot, id: Id, t: Template, ids: &mut Ids) -> anyhow::Result<()
             let side = |y: f64| bx("side plate", [ (c0[0] + r1[0]) / 2.0, y, (c0[2] + r1[2]) / 2.0 + 0.02 ], [c0[0] - r1[0] + 2.0 * rr + 0.04, 0.006, 2.0 * rr + 0.12], "#3fae6a");
             let shapes = vec![ramp, side(width / 2.0 + 0.01), side(-width / 2.0 - 0.01)];
             let l = link(r, ids, "Intake", shapes, *mass, "#3fae6a");
-            let pivot = math::add(base, [-0.04, 0.0, bumper_top + 0.06]);
+            let pivot = local_pivot(r, &t);
             if *deploy {
                 let j = joint(r, ids, "Intake deploy", JointKind::Hinge, parent, l, pivot, [0.0, -1.0, 0.0], Some([0.0, 100.0 * DEG]), 0.0);
                 let dd = drive(r, ids, "Intake deploy motor", motor, 1, *deploy_ratio, DriveTarget::Joint { joint: j, spool_radius: 0.0 }, Control::Ideal, 40.0);
@@ -357,19 +455,23 @@ fn build(r: &mut Robot, id: Id, t: Template, ids: &mut Ids) -> anyhow::Result<()
             }
             // +y axis: positive speed turns a roller's underside backward, pulling pieces in
             let dd = drive(r, ids, "Intake rollers", motor, 1, *ratio, DriveTarget::Shaft { shaft: sh }, Control::Voltage, 40.0);
-            new_bindings.push(Binding { button: Button::RT, action: Action::Run { drive: dd, value: 10.0, until: None } });
-            new_bindings.push(Binding { button: Button::LB, action: Action::Run { drive: dd, value: -8.0, until: None } });
-            m.pickup = Some(Pickup { link: l, center: math::add(c0, [0.06, 0.0, -height / 2.0 + 0.06]), size: [0.24, *width, 0.2], acquire_time: 0.15, drive: Some(dd), pieces: vec![] });
+            new_bindings.extend(roller_bindings(kind, dd));
+            m.pickup = Some(Pickup { quat: math::QI, link: l, center: math::add(c0, [0.06, 0.0, -height / 2.0 + 0.06]), size: [0.24, *width, 0.2], acquire_time: 0.15, drive: Some(dd), pieces: vec![] });
             m.holders.push(Holder { name: "In the intake".into(), link: l, pose: Pose::at(math::add(r1, [-0.08, 0.0, 0.05])), release: Release::Place { eject: 1.5 } });
         }
-        Params::Claw { width, gap, depth, wheel, motor, ratio, mass } => {
+        Params::Claw { width, gap, depth, open_plates, wheel, motor, ratio, mass } => {
             m.color = "#d65a8a".into();
             let (rr, ww) = wheel_size(wheel);
-            let shapes = vec![
-                bx("left plate", math::add(base, [depth / 2.0, width / 2.0 + 0.01, 0.0]), [*depth, 0.006, gap + 2.0 * rr + 0.04], "#d65a8a"),
-                bx("right plate", math::add(base, [depth / 2.0, -width / 2.0 - 0.01, 0.0]), [*depth, 0.006, gap + 2.0 * rr + 0.04], "#d65a8a"),
-                bx("back plate", math::add(base, [0.005, 0.0, 0.0]), [0.01, *width, gap + 2.0 * rr], "#8e3b5c"),
-            ];
+            let mut shapes = vec![bx("back plate", math::add(base, [0.005, 0.0, 0.0]), [0.01, *width, gap + 2.0 * rr], "#8e3b5c")];
+            for (name, y) in [("left", width / 2.0 + 0.01), ("right", -width / 2.0 - 0.01)] {
+                if *open_plates {
+                    for (edge, z) in [("top", gap / 2. + rr), ("bottom", -gap / 2. - rr)] {
+                        shapes.push(bx(&format!("{name} {edge} rail"), math::add(base,[depth/2.,y,z]), [*depth,0.006,0.018],"#d65a8a"));
+                    }
+                } else {
+                    shapes.push(bx(&format!("{name} plate"), math::add(base,[depth/2.,y,0.]), [*depth,0.006,gap + 2.*rr + 0.04],"#d65a8a"));
+                }
+            }
             let l = link(r, ids, "Claw", shapes, *mass, "#d65a8a");
             joint(r, ids, "Claw mount", JointKind::Fixed, parent, l, base, [0.0, 0.0, 1.0], None, 0.0);
             m.links.push(l);
@@ -382,9 +484,8 @@ fn build(r: &mut Robot, id: Id, t: Template, ids: &mut Ids) -> anyhow::Result<()
             // the bottom roller turns the other way on the same belt
             for x in &mut r.rollers[bottom_start..] { x.ratio = -1.0; }
             let d = drive(r, ids, "Claw rollers", motor, 1, *ratio, DriveTarget::Shaft { shaft: sh }, Control::Voltage, 40.0);
-            new_bindings.push(Binding { button: Button::RB, action: Action::Run { drive: d, value: 8.0, until: None } });
-            new_bindings.push(Binding { button: Button::LT, action: Action::Run { drive: d, value: -10.0, until: None } });
-            m.pickup = Some(Pickup { link: l, center: math::add(base, [depth + 0.05, 0.0, 0.0]), size: [0.15, *width, *gap + 0.04], acquire_time: 0.1, drive: Some(d), pieces: vec![] });
+            new_bindings.extend(roller_bindings(kind, d));
+            m.pickup = Some(Pickup { quat: math::QI, link: l, center: math::add(base, [depth + 0.05, 0.0, 0.0]), size: [0.15, *width, *gap + 0.04], acquire_time: 0.1, drive: Some(d), pieces: vec![] });
             m.holders.push(Holder { name: "In the claw".into(), link: l, pose: Pose::at(math::add(base, [depth * 0.5, 0.0, 0.0])), release: Release::Place { eject: 1.0 } });
         }
         Params::Shooter { wheel, width, motor, motors, ratio, hood_deg, mass, efficiency } => {
@@ -402,7 +503,7 @@ fn build(r: &mut Robot, id: Id, t: Template, ids: &mut Ids) -> anyhow::Result<()
             let n = ((width / (ww + 0.01)).floor() as u32).clamp(1, 6);
             rollers(r, ids, "Flywheel", sh, base, [0.0, 1.0, 0.0], *width, wheel, n, ww);
             let d = drive(r, ids, "Flywheel motors", motor, *motors, *ratio, DriveTarget::Shaft { shaft: sh }, Control::Velocity { kp: 0.05, ki: 0.0, ks: 0.15, kv: 0.0 }, 60.0);
-            new_bindings.push(Binding { button: Button::RT, action: Action::Run { drive: d, value: 400.0, until: None } });
+            new_bindings.extend(roller_bindings(kind, d));
             m.holders.push(Holder { name: "Ready to shoot".into(), link: l,
                 pose: Pose::new(math::add(base, [-0.06, 0.0, rr + 0.02]), axis_angle([0.0, -1.0, 0.0], a)), release: Release::Launch { shaft: sh, efficiency: *efficiency } });
         }
@@ -426,26 +527,80 @@ fn build(r: &mut Robot, id: Id, t: Template, ids: &mut Ids) -> anyhow::Result<()
             new_presets.push(("Climber out".into(), d, -90.0 * DEG));
         }
     }
+    for link in &mut r.links[first_link..] {
+        for shape in &mut link.shapes { shape.pose = placement.mul(&shape.pose); }
+    }
+    for joint in &mut r.joints[first_joint..] {
+        joint.anchor = placement.apply(joint.anchor);
+        joint.axis = placement.rotate(joint.axis);
+    }
+    for roller in &mut r.rollers[first_roller..] {
+        roller.center = placement.apply(roller.center);
+        roller.axis = placement.rotate(roller.axis);
+    }
+    for holder in &mut m.holders { holder.pose = placement.mul(&holder.pose); }
+    if let Some(pickup) = &mut m.pickup {
+        pickup.center = placement.apply(pickup.center);
+        pickup.quat = placement.quat;
+    }
     m.template = Some(t);
     r.mechanisms.push(m);
     // presets and bindings are added only the first time (a rebuild keeps the owner's own)
     let existing: Vec<String> = r.controls.presets.iter().map(|p| p.name.clone()).collect();
+    let first_new_preset = r.controls.presets.len();
     for (name, d, v) in new_presets {
         if existing.contains(&name) { continue; }
         let pid = r.id();
-        r.controls.presets.push(Preset { id: pid, name, targets: vec![PresetTarget { drive: d, value: v }] });
+        r.controls.presets.push(Preset { reef_gap: crate::default_reef_gap(), id: pid, name, targets: vec![PresetTarget { drive: d, value: v }] });
     }
     for b in new_bindings {
         if !r.controls.bindings.iter().any(|x| x.button == b.button) { r.controls.bindings.push(b); }
     }
-    assign_preset_buttons(r);
+    assign_new_preset_buttons(r, first_new_preset);
     Ok(())
 }
 
+/// Operator actions supplied by a template, including actions whose preferred button is already in use.
+pub fn roller_bindings(kind: MechKind, drive: Id) -> impl Iterator<Item = Binding> {
+    let commands: &[(Button, f64)] = match kind {
+        MechKind::Intake => &[(Button::RT,10.0),(Button::LB,-8.0)],
+        MechKind::Claw => &[(Button::RB,8.0),(Button::LT,-10.0)],
+        MechKind::Shooter => &[(Button::RT,400.0)],
+        _ => &[],
+    };
+    commands.iter().map(move |&(button,value)| Binding { button, action: Action::Run { drive, value, until: None } })
+}
+
 /// Gives the first presets the face buttons and the D-pad, where those are free.
-pub fn assign_preset_buttons(r: &mut Robot) {
+pub fn assign_preset_buttons(r: &mut Robot) { assign_new_preset_buttons(r, 0); }
+
+/// A playable REEFSCAPE starter with clearance above L4 and a separate seating height.
+pub fn upright_reef_example() -> Project {
+    let mut p = Project::new("Upright CORAL scorer");
+    p.archetype = true;
+    let lift = add(&mut p.robot, Template::elevator_default()).unwrap();
+    let mut claw = Template::claw_default();
+    claw.mount.on = Some(lift);
+    claw.mount.offset = [0.48, 0., 0.20];
+    claw.upright_coral();
+    let claw = add(&mut p.robot, claw).unwrap();
+    let rollers = p.robot.mechanism(claw).unwrap().pickup.as_ref().unwrap().drive.unwrap();
+    p.robot.controls.roller_hold_amps.insert(rollers, 8.0);
+    for position in &mut p.robot.controls.presets {
+        position.reef_gap = 0.14;
+        match position.name.as_str() {
+            "Elevator down" => { p.robot.controls.start_position = Some(position.id); position.name = "Receive CORAL".into(); }
+            "Elevator mid" => { position.targets[0].value = 0.625; position.name = "Seat L4".into(); }
+            "Elevator up" => position.name = "Clear L4".into(),
+            _ => {}
+        }
+    }
+    p
+}
+
+fn assign_new_preset_buttons(r: &mut Robot, start: usize) {
     let order = [Button::A, Button::B, Button::X, Button::Y, Button::Up, Button::Down, Button::Left, Button::Right];
-    for p in r.controls.presets.clone() {
+    for p in &r.controls.presets[start..] {
         if r.controls.bindings.iter().any(|b| matches!(b.action, Action::Preset { preset } if preset == p.id)) { continue; }
         if let Some(btn) = order.iter().find(|b| !r.controls.bindings.iter().any(|x| x.button == **b)) {
             r.controls.bindings.push(Binding { button: *btn, action: Action::Preset { preset: p.id } });
@@ -456,6 +611,68 @@ pub fn assign_preset_buttons(r: &mut Robot) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn mount_rotation_carries_children_joints_rollers_and_sensors() {
+        let mut p = Project::new("Angled elevator");
+        let r = &mut p.robot;
+        let mut elevator = Template::elevator_default();
+        let pivot = placement_anchor(r, &elevator);
+        let carrier = add(r, elevator.clone()).unwrap();
+        let mut claw = Template::claw_default();
+        claw.mount.on = Some(carrier);
+        claw.mount.offset = [0.08, 0.14, 0.03];
+        claw.mount.rotation_deg = [0.0, 12.0, 90.0];
+        let child = add(r, claw).unwrap();
+        let link = r.mechanism(child).unwrap().links[0];
+        let beam = r.link(link).unwrap().shapes[0].pose.pos;
+        r.sensors.push(Sensor::BeamBreak { name: "Mouth".into(), link, from: beam, to: math::add(beam, [0.03, 0.0, 0.0]) });
+        let before = r.clone();
+        elevator.mount.rotation_deg = [18.0, -30.0, 65.0];
+        let turn = math::euler_to_quat(elevator.mount.rotation_deg.map(f64::to_radians));
+        let rotation = Pose::new(pivot, turn).mul(&Pose::at(math::neg(pivot)));
+        rebuild(r, carrier, elevator).unwrap();
+        let near = |a, b| assert!(math::len(math::sub(a, b)) < 1e-9, "{a:?} != {b:?}");
+        for joint in &before.joints {
+            let tilted = r.joint(joint.id).unwrap();
+            near(tilted.anchor, rotation.apply(joint.anchor));
+            near(tilted.axis, rotation.rotate(joint.axis));
+        }
+        for old in &before.rollers {
+            let new = r.roller(old.id).unwrap();
+            near(new.center, rotation.apply(old.center));
+            near(new.axis, rotation.rotate(old.axis));
+        }
+        let shape = &r.link(link).unwrap().shapes[0];
+        near(shape.pose.pos, rotation.apply(beam));
+        let Sensor::BeamBreak { from, .. } = r.sensors[0] else { panic!() };
+        near(from, shape.pose.pos);
+        assert_eq!(r.controls, before.controls);
+        let before_detach = shape.pose;
+        let mut saved = Project::from_json(&p.to_json()).unwrap();
+        saved.robot.remove_mechanism(carrier);
+        let t = saved.robot.mechanism(child).unwrap().template.clone().unwrap();
+        rebuild(&mut saved.robot, child, t).unwrap();
+        let after = saved.robot.link(link).unwrap().shapes[0].pose;
+        near(after.pos, before_detach.pos);
+        near(after.rotate([1.0, 0.0, 0.0]), before_detach.rotate([1.0, 0.0, 0.0]));
+    }
+
+    #[test]
+    fn ground_intake_turns_about_its_deploy_pivot() {
+        let mut r = Robot::new("Ground intake");
+        let mut t = Template::intake_default();
+        let pivot = placement_anchor(&r, &t);
+        let id = add(&mut r, t.clone()).unwrap();
+        let centre = r.rollers[0].center;
+        t.mount.rotation_deg[1] = 25.0;
+        rebuild(&mut r, id, t.clone()).unwrap();
+        assert_eq!(placement_anchor(&r, &t), pivot);
+        let joint = r.joint_of(r.mechanism(id).unwrap().links[0]).unwrap();
+        assert!(math::len(math::sub(joint.anchor, pivot)) < 1e-9);
+        let direction = math::qrot(axis_angle([0.0, 1.0, 0.0], 25.0 * DEG), math::sub(centre, pivot));
+        assert!(math::len(math::sub(r.rollers[0].center, math::add(pivot, direction))) < 1e-9);
+    }
 
     #[test]
     fn elevator_with_claw_rebuilds_keeping_ids() {
@@ -491,5 +708,35 @@ mod tests {
         assert!(!r.rollers.is_empty());
         r.remove_mechanism(i);
         assert!(r.rollers.is_empty() && r.shafts.is_empty() && r.drives.is_empty() && r.links.len() == 1);
+    }
+
+    #[test]
+    fn moving_and_removing_a_carrier_keeps_a_valid_assembly() {
+        let mut r = Robot::new("Layout");
+        let e = add(&mut r, Template::elevator_default()).unwrap();
+        let mut claw = Template::claw_default();
+        claw.mount.on = Some(e);
+        let c = add(&mut r, claw).unwrap();
+        let before = r.clone();
+        let mut elevator = r.mechanism(e).unwrap().template.clone().unwrap();
+        elevator.mount.on = Some(c);
+        assert!(rebuild(&mut r, e, elevator).is_err());
+        assert_eq!(r, before);
+
+        let mut elevator = r.mechanism(e).unwrap().template.clone().unwrap();
+        if let Params::Elevator { travel, .. } = &mut elevator.params { *travel = 1.0; }
+        r.controls.presets.iter_mut().find(|p| p.name == "Elevator mid").unwrap().targets[0].value = 0.123;
+        rebuild(&mut r, e, elevator).unwrap();
+        assert_eq!(r.controls.presets.iter().find(|p| p.name == "Elevator up").unwrap().targets[0].value, 0.5);
+        assert_eq!(r.controls.presets.iter().find(|p| p.name == "Elevator mid").unwrap().targets[0].value, 0.123);
+
+        let old_position = mount_point(&r, &r.mechanism(c).unwrap().template.as_ref().unwrap().mount);
+        r.remove_mechanism(e);
+        let claw = r.mechanism(c).unwrap();
+        let mount = &claw.template.as_ref().unwrap().mount;
+        assert_eq!(mount.on, None);
+        assert_eq!(mount_point(&r, mount), old_position);
+        assert_eq!(r.joint_of(claw.links[0]).unwrap().parent, CHASSIS);
+        assert!(r.controls.presets.iter().all(|p| !p.name.starts_with("Elevator")));
     }
 }
